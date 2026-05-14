@@ -1,3 +1,5 @@
+**English** | [한국어](README.ko.md)
+
 # custom-skills
 
 Personal Claude Code skills, distilled from real sessions.
