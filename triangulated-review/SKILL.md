@@ -103,3 +103,24 @@ Each reviewer reads the whole codebase. Three reviewers ≈ 3× read cost. Resis
 - Trusting a single high-confidence reviewer because they sound authoritative → always fact-check single-reviewer claims
 - Applying without clustering → one giant commit makes bisecting impossible
 - Treating a memory/latency claim in the release notes as "covered by the review" → it isn't; A/B against the previous release zip
+
+## Skill maturity disclosure
+
+This skill was **distilled from a single real session** (CursorMeter #61) rather than the synthetic subagent baseline that `superpowers:writing-skills` mandates as the RED phase. The Iron Law was bent: deployment is the first real test. Each invocation is treated as a delayed RED run — observed rationalizations and loopholes get logged here and the skill refactored.
+
+### Refactor log
+
+| Date | Trigger | Rationalization / loophole observed | Fix applied |
+|------|---------|-------------------------------------|-------------|
+| _(empty — first real invocation will populate)_ |  |  |  |
+
+### Open loopholes (untested)
+
+These are paths the original session didn't stress; future invocations should watch for them.
+
+- The "HIGH/CRITICAL only — no MEDIUM" instruction in reviewer prompts has not been verified to actually suppress MEDIUM output in practice. Reviewers may comply, partially comply, or rationalize ("this is HIGH because…").
+- Skipping the cross-comment round between reviewers is asserted to be sufficient. Untested on a scenario where fact-check itself returns ambiguous verdicts.
+- Cluster ordering (mechanical → state-machine → UI) has not been stress-tested against a codebase where the three categories have hidden dependencies.
+- The 3-reviewer cost claim ("≈ half of 5-reviewer") is rule-of-thumb, not token-measured. A real measurement would validate or reset the assumption.
+
+Closing a loophole = add a row to the refactor log and tighten the relevant section above.
