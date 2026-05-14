@@ -1,6 +1,6 @@
 ---
 name: triangulated-review
-description: Three-reviewer parallel code audit (senior + codex max-effort + integrated simplify lens) on the current branch, with codex fact-check on single-reviewer findings before applying. Use when you want a high-quality but cost-aware review pass post-merge or pre-release.
+description: Use when planning a substantial code-review pass — post-merge of a feature, pre-release audit, or any moment a single-reviewer pass would feel too low-confidence to trust without verification.
 argument-hint: [scope-hint]
 allowed-tools: Bash, Read, Grep
 ---
