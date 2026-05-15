@@ -8,7 +8,13 @@ Destination: `<destination path>`
 - Branch:
 - Remote:
 - Working tree:
+- Source root:
+- Destination root:
+- Copy mode: `context-only` / `full-workspace`
+- Source Git repo count:
+- Destination Git repo count:
 - Copied/excluded assets:
+- Source `AGENTS.md` trust mode: `trusted` / `generated-review` / `unknown`
 
 ## Section Classification
 
@@ -25,12 +31,30 @@ Destination: `<destination path>`
 | `example.md` | cross-agent-rule | Moved to `AGENTS.md` |
 | `team_routing.md` | private-sensitive | Moved to private local reference |
 
+## Source AGENTS.md Assessment
+
+| Source `AGENTS.md` | Classification | Evidence | Action |
+| --- | --- | --- | --- |
+| `example/AGENTS.md` | generated-review | Compared against durable source and repo facts | Reused / revised / ignored |
+
 ## Deferred Or Omitted
 
 - Raw session logs:
 - MCP registration:
 - Long procedures:
 - Stale material:
+
+## Quality Comparison
+
+- Source child `AGENTS.md` count:
+- Target child `AGENTS.md` count:
+- Target authority statement coverage:
+- Source generated/converted files disposition:
+- Stale source path/reference search:
+- Suspicious mechanical substitution search:
+- Normalized source-to-target comparison:
+- Confirmed defects:
+- Confirmed preserved domain facts:
 
 ## Verification
 

@@ -28,7 +28,29 @@ decision:
 
 ## Workflow
 
-1. Inventory the source.
+1. Establish the migration scope before copying or rewriting.
+
+Ask for, infer, or explicitly record these choices before starting:
+
+- Source root and destination root.
+- Copy mode:
+  - `context-only`: migrate instructions, memory, MCP config, and referenced
+    knowledge files only.
+  - `full-workspace`: also copy code repositories and ordinary project files.
+- `AGENTS.md` trust mode:
+  - `trusted`: source `AGENTS.md` is user-authored and may be used as source.
+  - `generated-review`: source `AGENTS.md` appears generated or mechanically
+    converted; verify it against durable sources and repo facts before using it
+    as source.
+  - `unknown`: compare against `CLAUDE.md` and repo facts before using it.
+- Whether child Git repositories should receive native `AGENTS.md` files now
+  or temporary bridge files.
+
+If a source `AGENTS.md` appears generated, do not treat that as a defect by
+itself. Treat it as a signal to verify provenance, intended transformations,
+and consistency with durable source files.
+
+2. Inventory the source.
 
 ```bash
 git status --short --branch
@@ -43,7 +65,15 @@ find ~/.claude/projects -maxdepth 1 -type d | grep '<encoded-path-or-repo-name>'
 find ~/.claude/projects/<encoded-cwd>/memory -maxdepth 2 -type f -print
 ```
 
-2. Classify each section or memory file.
+When migrating a workspace containing child repositories, count them in both
+source and destination:
+
+```bash
+find <source-root> -name .git -type d -prune | wc -l
+find <destination-root> -name .git -type d -prune | wc -l
+```
+
+3. Classify each section or memory file.
 
 Use these buckets:
 
@@ -54,7 +84,19 @@ Use these buckets:
 - `private-sensitive`: real people, employee IDs, credentials, internal routing
 - `stale-or-generic`: outdated paths, deleted commands, broad platitudes
 
-3. Decide native, bridge, private, or omit.
+Also classify each source `AGENTS.md`:
+
+- `authoritative-source`: user-authored, current, and consistent with repo facts
+- `generated-usable`: generated, but verified against `CLAUDE.md` and code
+- `generated-review`: generated or converted, and not yet verified against
+  durable sources and repo facts
+- `stale`: contradicts code, commands, paths, or active workspace layout
+
+Generation alone is not a quality signal. Judge generated or converted files
+by whether they preserve domain facts, update execution context correctly, and
+cover the intended workspace scope.
+
+4. Decide native, bridge, private, or omit.
 
 - `native`: write concise Codex-oriented `AGENTS.md`.
 - `bridge`: create a short `AGENTS.md` that points to parent layers and the
@@ -64,7 +106,11 @@ Use these buckets:
   only when needed.
 - `omit`: leave out and document why.
 
-4. Build the layer model.
+Prefer `native` for child repositories when the durable source is concise
+enough to flatten. Use a bridge only when native conversion would be unsafe in
+the current pass.
+
+5. Build the layer model.
 
 - Global defaults live in `~/.codex/AGENTS.md`.
 - Workspace policy can live at `<workspace>/AGENTS.md`.
@@ -74,7 +120,13 @@ Use these buckets:
 - Repo `AGENTS.md` should contain only repo-specific commands, architecture,
   gotchas, and exceptions.
 
-5. Copy files conservatively.
+6. Copy files conservatively.
+
+For `context-only`, copy only instruction/memory/knowledge/MCP material and
+document that code repositories were intentionally not copied.
+
+For `full-workspace`, copy code and ordinary project files too, while still
+excluding generated local state.
 
 - Preserve tracked files, even if they are named `.env`.
 - Exclude untracked local secrets and generated state: `.venv/`, `node_modules/`,
@@ -86,12 +138,51 @@ Use these buckets:
 git ls-files --error-unmatch .env >/dev/null 2>&1 && echo tracked || echo untracked
 ```
 
-6. Write an audit.
+After a full-workspace copy, verify that source and destination repo counts
+match and that tracked status differences are explained by pre-existing source
+state or intentional migration files.
+
+7. Rewrite `AGENTS.md` natively.
+
+When source `AGENTS.md` is `generated-review`, compare it with `CLAUDE.md`,
+durable docs, and repo facts before deciding whether to reuse, revise, or
+ignore it as source material.
+
+Do not perform broad product-name replacement. Preserve domain facts such as:
+
+- Real package names, npm scopes, binary names, and import paths.
+- Real CLI commands used by the repo, even if they include `claude`.
+- Dataset labels, examples, URLs, and directory names that are part of the
+  project's subject matter.
+
+Rewrite only execution context:
+
+- Active instruction file names: `CLAUDE.md` -> `AGENTS.md` when describing
+  Codex behavior.
+- Workspace paths: source root -> destination root.
+- Local private/reference paths: `.claude/...` -> Codex-equivalent private or
+  reference paths when appropriate.
+- Tool-specific workflow text only when the target behavior is actually Codex
+  behavior.
+
+Each native child `AGENTS.md` should state its authority relationship:
+
+```markdown
+## Instruction Authority
+
+This `AGENTS.md` is the authoritative Codex instruction file for this
+repository. Earlier instruction files were audited during migration but are
+not authoritative unless this file explicitly references them. `CLAUDE.md`,
+when present, is retained only as migration source material; if it differs
+from this file, follow `AGENTS.md`.
+```
+
+8. Write an audit.
 
 Create one audit file per repo or workspace. Use
 `references/audit-template.md` as the starting point.
 
-7. Validate instruction loading.
+9. Validate instruction loading.
 
 For Git repos:
 
@@ -108,6 +199,27 @@ codex exec -C <dir> --skip-git-repo-check -s read-only --ephemeral \
 ```
 
 Update the audit with the active instruction files reported by Codex.
+
+10. Validate migration quality.
+
+For generated or converted source `AGENTS.md`, compare quality against the native
+target using objective checks:
+
+- Count source and target child `AGENTS.md` files.
+- Compare generated or converted `AGENTS.md` files against durable sources for
+  unusually shallow changes, such as mostly renamed headings, unchanged
+  tool-specific procedures, or broad product-name substitutions.
+- Search active target `AGENTS.md` files for stale source paths and stale
+  `CLAUDE.md` authority references.
+- Search for suspicious mechanical substitutions such as changed package names,
+  CLI binaries, URLs, examples, or data labels.
+- Spot-check suspicious hits against source code before calling them errors.
+- Normalize intended transformations from `CLAUDE.md` to target `AGENTS.md`
+  and compare bodies when feasible.
+
+Quality conclusions must be evidence-based. Treat generation as provenance,
+not as a defect. Mark a file as lower quality only when it contradicts repo
+facts, preserves stale execution context, or omits required child coverage.
 
 ## Done Criteria
 
@@ -127,6 +239,12 @@ A migration is not complete until these are true:
   files.
 - Deferred native flattening, bridge-only areas, and omitted material are
   documented.
+- If full-workspace copy was requested, source and destination repo counts
+  match or every mismatch is explained.
+- If source `AGENTS.md` files were generated or converted, the audit records
+  whether they were reused, revised, or ignored, with evidence.
+- Quality comparison records evidence for any claim that one migration result
+  is better than another.
 
 ## Native AGENTS.md Shape
 
