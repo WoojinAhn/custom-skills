@@ -32,3 +32,4 @@ The target agent picks it up on the next session.
 - Body in English (config file rule); user-facing prose can be Korean where it helps
 - Each skill should encode lessons from at least one real session — no speculative skills
 - Anti-patterns section at the end if the skill has known failure modes
+- To expose a skill in Codex/OpenAI skill lists, add `agents/openai.yaml` (UI + policy metadata; schema: [openai/codex skill-creator](https://github.com/openai/codex/blob/main/codex-rs/skills/src/assets/samples/skill-creator/references/openai_yaml.md))

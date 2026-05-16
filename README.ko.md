@@ -32,3 +32,4 @@ ln -s ~/home/custom-skills/<skill-name> ~/.codex/skills/<skill-name>
 - 본문은 영어 (config file 규칙); 사용자 노출 prose는 한국어가 더 명확하면 한국어 허용
 - 모든 스킬은 적어도 한 번의 실제 세션 경험을 코드화해야 함 — speculative skill 금지
 - 알려진 실패 모드가 있으면 본문 마지막에 anti-patterns 섹션
+- Codex/OpenAI 스킬 목록에 노출하려면 `agents/openai.yaml` 추가 (UI + policy metadata; 스키마: [openai/codex skill-creator](https://github.com/openai/codex/blob/main/codex-rs/skills/src/assets/samples/skill-creator/references/openai_yaml.md))
