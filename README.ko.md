@@ -25,6 +25,7 @@ ln -s ~/home/custom-skills/<skill-name> ~/.codex/skills/<skill-name>
 |---|---|
 | [`codex-context-migration`](codex-context-migration/SKILL.md) | Claude-era repo context(`CLAUDE.md`, `.claude`, memory, MCP)를 Codex `AGENTS.md` 레이어로 audit-first 이관. private context 분리와 instruction-load 검증 포함. |
 | [`triangulated-review`](triangulated-review/SKILL.md) | 3 reviewer 패러럴 코드 감사 (senior + codex max + simplify) + 단일 reviewer 발견에 대한 codex fact-check. CursorMeter #61 5-reviewer 실험의 cost-pruned 버전. |
+| [`zoom-caption-capture`](zoom-caption-capture/SKILL.md) | Zoom 웹 클라이언트의 `iframe#webclient` 내부에 `MutationObserver`를 붙여 실시간 자막을 스트리밍 캡처. 토큰 단위 overlap merge + Blob 다운로드로 dump. raw buffer는 무손실 보존, cleanup은 LLM pass에서 처리. |
 
 ## 작성 컨벤션
 

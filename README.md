@@ -25,6 +25,7 @@ The target agent picks it up on the next session.
 |---|---|
 | [`codex-context-migration`](codex-context-migration/SKILL.md) | Audit-first migration from Claude-era repo context (`CLAUDE.md`, `.claude`, memory, MCP) into Codex `AGENTS.md` layers, with private-context separation and instruction-load validation. |
 | [`triangulated-review`](triangulated-review/SKILL.md) | Three-reviewer parallel code audit (senior + codex max + simplify) with codex fact-check on single-reviewer findings. Cost-pruned form of the 5-reviewer pass run on CursorMeter #61. |
+| [`zoom-caption-capture`](zoom-caption-capture/SKILL.md) | Stream Zoom Web Client live captions via a `MutationObserver` inside `iframe#webclient`, with token-level overlap merging and Blob-download dump. Lossless raw buffer + deferred cleanup so an LLM pass can produce final minutes. |
 
 ## Authoring conventions
 
