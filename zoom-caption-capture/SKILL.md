@@ -1,6 +1,7 @@
 ---
 name: zoom-caption-capture
-description: Use when capturing real-time live captions / transcription from a Zoom Web Client meeting via browser automation to build a transcript or meeting minutes. Triggers include live caption capture, STT streaming, meeting transcription, Zoom 자막 캡처, 회의록 만들기, Zoom STT, ATT 회의록.
+description: Use when the user is in a Zoom Web Client meeting (app.zoom.us/wc/...) with live captions visible and wants the captions captured. Triggers include live caption capture, STT streaming, meeting transcription, Zoom 자막 캡처, 회의록 만들기, Zoom STT, ATT 회의록.
+allowed-tools: Bash, mcp__claude-in-chrome__tabs_context_mcp, mcp__claude-in-chrome__javascript_tool, mcp__claude-in-chrome__tabs_close_mcp
 ---
 
 # Zoom Caption Capture
@@ -16,28 +17,24 @@ Core principle: **capture raw fragments without loss, defer cleanup to dump time
 - The user is already joined to a Zoom meeting via the Web Client (`app.zoom.us/wc/...`)
 - Live captions / transcription are visible (host enabled CC)
 - Goal is a transcript / meeting minutes, not real-time translation
-- Browser is reachable via `claude-in-chrome` MCP tools (or playwright)
+- Browser is reachable via `claude-in-chrome` MCP tools
 
 Do NOT use if:
 - The user has not yet joined the meeting — joining requires user confirmation (name, ToS) and is out of scope of this skill
 - Captions are not enabled by the host (no DOM target exists)
 - The meeting is in the native Zoom app, not the web client
 
-## Prerequisites
-
-1. `claude-in-chrome` MCP loaded (`tabs_context_mcp`, `javascript_tool`, etc.)
-2. Active MCP tab whose URL is the Zoom Web Client meeting page
-3. User has joined the meeting and captions are showing
-
 ## Quick Reference
 
-| Step | Tool | Action |
+| Step | Tool | Script |
 |------|------|--------|
-| 1 | `javascript_tool` | Install observer (see Setup) |
-| 2 | `javascript_tool` | Spot-check `__transcript.length` periodically |
-| 3 | `javascript_tool` | Build payload + trigger downloads (see Dump) |
-| 4 | `Bash` (node) | Convert downloaded JSON → Markdown if MD download was blocked |
+| 1 | `javascript_tool` | `scripts/install-observer.js` |
+| 2 | `javascript_tool` | `scripts/spot-check.js` (every few minutes) |
+| 3 | `javascript_tool` | `scripts/dump.js` → JSON lands in `~/Downloads/` |
+| 4 | `Bash` | `node scripts/to-markdown.js ~/Downloads/meeting-*.json` |
 | 5 | `tabs_close_mcp` | Close tab → auto-leaves the meeting |
+
+To stop capturing without leaving: run `scripts/stop.js`.
 
 ## DOM Target
 
@@ -48,163 +45,15 @@ The meeting UI lives inside `iframe#webclient` (cross-document — must access `
 - `.zmu-data-selector-item__icon` — speaker initial (e.g. `M`, `T`) — Zoom only exposes initials, not full names, in the caption box
 - `.live-transcription-subtitle__item` — current caption text (rolling)
 
-## Setup (install observer)
+## How to Run a Script
 
-Run via `javascript_tool` on the meeting tab. Stores state on `iframe.contentWindow` so it survives between calls.
+`javascript_tool` accepts the script body as a single argument and executes it in the page context. Read the file and pass its contents:
 
-```javascript
-(() => {
-  const f = document.getElementById('webclient');
-  const w = f.contentWindow;
-  const doc = f.contentDocument;
-
-  if (w.__captionObs) { try { w.__captionObs.disconnect(); } catch(e){} }
-  w.__captionBuf = [];
-  w.__transcript = [];
-
-  const norm = s => s.replace(/[\.,!?]+/g, '').replace(/\s+/g, ' ').trim();
-  const tokens = s => norm(s).split(' ').filter(Boolean);
-
-  // Find suffix-of-A as substring-in-B (token level) and append the tail.
-  const overlapAppend = (a, b) => {
-    if (!a) return b;
-    const aN = norm(a), bN = norm(b);
-    if (bN.includes(aN)) return b;
-    if (aN.includes(bN)) return a;
-    const aT = tokens(a), bT = tokens(b);
-    for (let n = Math.min(aT.length, 20); n >= 2; n--) {
-      const tail = aT.slice(-n);
-      for (let i = 0; i + n <= bT.length; i++) {
-        let ok = true;
-        for (let j = 0; j < n; j++) if (tail[j] !== bT[i+j]) { ok = false; break; }
-        if (ok) {
-          const remaining = bT.slice(i + n).join(' ');
-          return remaining ? a + ' ' + remaining : a;
-        }
-      }
-    }
-    return null; // no overlap — caller treats as new utterance
-  };
-
-  const tick = () => {
-    const box = doc.querySelector('.live-transcription-subtitle__box');
-    if (!box) return;
-    const speakerEl = box.querySelector('.zmu-data-selector-item__icon');
-    const textEl = box.querySelector('.live-transcription-subtitle__item');
-    if (!textEl) return;
-    const speaker = speakerEl ? (speakerEl.innerText || '').trim() : '?';
-    const text = (textEl.innerText || '').trim();
-    if (!text) return;
-    const now = new Date().toISOString();
-    const last = w.__transcript[w.__transcript.length - 1];
-    if (last && last.speaker === speaker) {
-      const merged = overlapAppend(last.text, text);
-      if (merged !== null) {
-        if (merged !== last.text) { last.text = merged; last.updatedAt = now; }
-        return;
-      }
-    }
-    w.__transcript.push({ speaker, text, startedAt: now, updatedAt: now });
-  };
-
-  // Post-hoc re-merge over the full transcript (run again at dump time).
-  w.__mergeTranscript = () => {
-    const out = [];
-    for (const u of w.__transcript) {
-      const last = out[out.length - 1];
-      if (last && last.speaker === u.speaker) {
-        const m = overlapAppend(last.text, u.text);
-        if (m !== null) { last.text = m; last.updatedAt = u.updatedAt; continue; }
-      }
-      out.push({ ...u });
-    }
-    return out;
-  };
-
-  const root = doc.getElementById('live-transcription-subtitle') || doc.body;
-  w.__captionObs = new MutationObserver(tick);
-  w.__captionObs.observe(root, { childList: true, subtree: true, characterData: true });
-  tick();
-  return { status: 'started', entries: w.__transcript.length };
-})()
+```
+javascript_tool(<contents of scripts/install-observer.js>)
 ```
 
-## Monitoring
-
-Don't poll aggressively — observer is event-driven. Spot-check every few minutes:
-
-```javascript
-(() => {
-  const w = document.getElementById('webclient').contentWindow;
-  const buf = w.__transcript || [];
-  const last = buf[buf.length - 1];
-  return {
-    observerAlive: !!w.__captionObs,
-    rawCount: buf.length,
-    mergedCount: w.__mergeTranscript ? w.__mergeTranscript().length : null,
-    lastSpeaker: last?.speaker,
-    lastTextTail: last?.text.slice(-100),
-    lastUpdatedAt: last?.updatedAt
-  };
-})()
-```
-
-**Pitfall:** `javascript_tool` has a ~45s CDP timeout. Do not `await setTimeout(... 90000)` inside the JS — the call will fail. Sleep between separate tool invocations instead.
-
-## Dump (end of session)
-
-The caption JSON can be 300KB+ — return values get truncated in transit. Trigger a **browser download** instead of returning the text:
-
-```javascript
-(() => {
-  const w = document.getElementById('webclient').contentWindow;
-  const doc = document.getElementById('webclient').contentDocument;
-  const merged = w.__mergeTranscript();
-  const meta = {
-    title: document.title,            // meeting title
-    startedAt: w.__transcript[0]?.startedAt,
-    endedAt: w.__transcript.at(-1)?.updatedAt,
-    speakers: [...new Set(w.__transcript.map(u => u.speaker))]
-  };
-  const payload = { meta, raw: w.__transcript, merged };
-  const json = JSON.stringify(payload, null, 2);
-  const stamp = (meta.startedAt || new Date().toISOString()).slice(0, 10);
-  const blob = new Blob([json], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const a = doc.createElement('a');
-  a.href = url;
-  a.download = `meeting-${stamp}-transcript.json`;
-  doc.body.appendChild(a); a.click();
-  setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1000);
-  return { jsonBytes: json.length, mergedCount: merged.length, rawCount: w.__transcript.length };
-})()
-```
-
-File lands in `~/Downloads/`. Verify with `ls -lh ~/Downloads/meeting-*.json`.
-
-### Markdown conversion (recommended)
-
-Chrome blocks back-to-back programmatic downloads, so triggering JSON + MD in one shot usually drops the second. Convert locally instead:
-
-```bash
-node -e "
-const fs = require('fs');
-const path = process.argv[1];
-const d = JSON.parse(fs.readFileSync(path, 'utf8'));
-const md = [
-  '# ' + (d.meta.title || 'Meeting'),
-  '',
-  '- Captured: ' + d.meta.startedAt + ' → ' + d.meta.endedAt,
-  '- Speakers: ' + d.meta.speakers.join(', '),
-  '- Raw: ' + d.raw.length + ' / Merged: ' + d.merged.length,
-  '',
-  '## Transcript',
-  '',
-  ...d.merged.map(u => '**[' + u.startedAt.slice(11,19) + '] ' + u.speaker + '**: ' + u.text)
-].join('\n');
-fs.writeFileSync(path.replace(/\.json$/, '.md'), md);
-" ~/Downloads/meeting-YYYY-MM-DD-transcript.json
-```
+Scripts store state on `iframe.contentWindow.__transcript`, so they survive between tool invocations.
 
 ## Known Limitations
 
@@ -218,25 +67,38 @@ fs.writeFileSync(path.replace(/\.json$/, '.md'), md);
 | Mistake | Fix |
 |---------|-----|
 | Trying to query captions on the top-level document (returns 0 hits) | Access `document.getElementById('webclient').contentDocument` |
-| Long `setTimeout` inside one `javascript_tool` call (≥45s) | Sleep between separate tool calls; observer keeps running between them |
-| Returning the full JSON as a tool result | Trigger a Blob download → file lands in `~/Downloads/` |
-| Triggering both JSON and MD downloads in one JS run | Chrome blocks the 2nd; convert locally with `node` after the JSON arrives |
+| Long `setTimeout` inside one `javascript_tool` call (≥45s) | `javascript_tool` has a ~45s CDP timeout. Sleep between separate tool calls; observer keeps running between them |
+| Returning the full JSON as a tool result | Use `scripts/dump.js` — Blob download routes it to `~/Downloads/` |
+| Triggering both JSON and MD downloads in one JS run | Chrome blocks the 2nd; convert locally with `scripts/to-markdown.js` |
 | Assuming the inline merged output is the final minutes | It's not — run an LLM cleanup pass on the dump for the user-facing doc |
 
 ## Lifecycle / Cleanup
 
-To stop capturing without leaving the meeting:
-
-```javascript
-(() => {
-  const w = document.getElementById('webclient').contentWindow;
-  if (w.__captionObs) w.__captionObs.disconnect();
-  return { stopped: true, captured: w.__transcript.length };
-})()
-```
-
-To leave the meeting: close the tab via `tabs_close_mcp` — Zoom Web Client treats tab close as participant exit.
+- **Stop capture, stay in meeting**: run `scripts/stop.js`
+- **Leave meeting**: close the tab via `tabs_close_mcp` — Zoom Web Client treats tab close as participant exit
 
 ## Real-World Result
 
 Reference run (ATT 26/05/18, ~31 min): 1006 raw fragments → 233 merged utterances → 559 KB JSON / 94 KB Markdown. Inline merger handled ~75% of consecutive fragments; post-hoc LLM pass cleaned the rest.
+
+## Skill Maturity Disclosure
+
+This skill was **distilled from a single real session** (ATT 26/05/18) rather than the synthetic subagent baseline that `superpowers:writing-skills` mandates as the RED phase. The Iron Law was bent: deployment is the first real test. Each invocation is treated as a delayed RED run — observed rationalizations and loopholes get logged here and the skill refactored.
+
+### Refactor log
+
+| Date | Trigger | Rationalization / loophole observed | Fix applied |
+|------|---------|-------------------------------------|-------------|
+| _(empty — first real invocation will populate)_ |  |  |  |
+
+### Open loopholes (untested)
+
+These are paths the original session didn't stress; future invocations should watch for them.
+
+- The 20–40% inline-merger failure rate on Korean captions is a single-session datapoint. Other languages, faster speakers, or different host caption engines may produce different distributions. Re-measure on the next real run.
+- Chrome's programmatic-download throttling (which forces the JSON-only dump + local Markdown conversion) is version-dependent and was observed on one Chrome build only. A future Chrome may queue both downloads cleanly, or block both.
+- The token-overlap window of 20 (in `scripts/install-observer.js`) was tuned for an ATT-style monologue cadence. Long single-speaker stretches (>~10s without pause) still fragment in practice; an even longer window may help or may merge across genuinely-distinct utterances.
+- The observer's reliance on the `.live-transcription-subtitle__*` class names assumes Zoom Web Client UI stability. A UI rewrite invalidates the entire skill without warning — guard the spot-check by surfacing `rawCount === 0` loudly.
+- The skill has only been run on Zoom Web Client English UI Chrome on macOS. Other OS/browser/locale combos are untested.
+
+Closing a loophole = add a row to the refactor log and tighten the relevant section above.
