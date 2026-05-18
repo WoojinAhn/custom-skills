@@ -17,12 +17,21 @@ Core principle: **capture raw fragments without loss, defer cleanup to dump time
 - The user is already joined to a Zoom meeting via the Web Client (`app.zoom.us/wc/...`)
 - Live captions / transcription are visible (host enabled CC)
 - Goal is a transcript / meeting minutes, not real-time translation
-- Browser is reachable via `claude-in-chrome` MCP tools
 
 Do NOT use if:
 - The user has not yet joined the meeting — joining requires user confirmation (name, ToS) and is out of scope of this skill
 - Captions are not enabled by the host (no DOM target exists)
 - The meeting is in the native Zoom app, not the web client
+
+## Prerequisites
+
+**One-time setup** (see [`references/setup.md`](references/setup.md)): `claude-in-chrome` MCP wired up in Claude Code; Node.js if you'll use `scripts/to-markdown.js`.
+
+**Per-session** (check before running step 1):
+- `mcp__claude-in-chrome__*` tools resolve in this session
+- The active MCP tab is the Zoom Web Client meeting page (`app.zoom.us/wc/...`)
+- You have joined the meeting (Zoom's name / ToS prompt accepted)
+- The live-caption box is visible in the meeting UI
 
 ## Quick Reference
 
