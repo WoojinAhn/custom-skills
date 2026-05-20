@@ -42,6 +42,11 @@ classifies source material, decides whether each area should become native
 instructions, a bridge, private local context, or an omission, and validates
 the result with `codex exec`.
 
+For larger workspaces, the bundled `scripts/inventory.py` helper can generate a
+read-only child repo/context table from user-provided source and destination
+paths. The helper is only an inventory aid; final include/exclude decisions
+remain part of the audit workflow.
+
 It treats generated or converted `AGENTS.md` files as provenance to review, not
 as defects by default. Quality claims must be backed by repo facts, stale
 reference checks, and evidence that domain facts were preserved while execution

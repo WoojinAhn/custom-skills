@@ -11,6 +11,7 @@ Destination: `<destination path>`
 - Source root:
 - Destination root:
 - Copy mode: `context-only` / `full-workspace`
+- Inventory command:
 - Source Git repo count:
 - Destination Git repo count:
 - Copied/excluded assets:

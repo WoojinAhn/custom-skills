@@ -82,6 +82,20 @@ and consistency with durable source files.
 
 2. Inventory the source.
 
+Use the bundled read-only inventory helper when scanning a workspace with child
+repositories:
+
+```bash
+python3 <skill-dir>/scripts/inventory.py \
+  --source <source-root> \
+  --destination <destination-root> \
+  --format markdown
+```
+
+The helper only reports candidates and weak review signals. Do not treat
+`suggested_action` as a final include/exclude decision; use it to avoid missed
+repos and to prepare the user confirmation checklist.
+
 ```bash
 git status --short --branch
 git remote -v

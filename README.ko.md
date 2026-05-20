@@ -39,6 +39,11 @@ exclude, copy-only, defer 중 어떻게 처리할지도 먼저 확정합니다. 
 material을 분류하고, 각 영역을 native instruction, bridge, private local
 context, omit 중 어디에 둘지 결정한 뒤 `codex exec`로 결과를 검증합니다.
 
+큰 workspace에서는 포함된 `scripts/inventory.py` helper로 사용자가 지정한
+출발지/목적지 경로 기준의 read-only 하위 repo/context 표를 만들 수 있습니다.
+이 helper는 누락 방지용 inventory 도구일 뿐이며, 최종 include/exclude 판단은
+audit workflow 안에서 확정합니다.
+
 생성 또는 변환된 `AGENTS.md`는 기본적으로 결함으로 보지 않고, 검토해야 할
 provenance로 다룹니다. 품질 판단은 repo 사실, stale reference 검사, domain
 fact 보존 여부, execution context 갱신 여부 같은 증거를 기준으로 남깁니다.
