@@ -46,6 +46,38 @@ private local context, MCP 설정, generated instruction 검증이 함께 필요
 사용자에게 잘 맞습니다. 작은 단일 repo라면 inventory, rewrite, validation만
 가볍게 적용하면 됩니다.
 
+### `triangulated-review`
+
+일반적인 단일 reviewer 검토만으로는 신뢰도가 부족할 때 사용합니다. 큰 기능을
+merge한 직후, public release 전, 또는 품질/보안 리스크가 큰 수정 묶음을
+적용하기 전에 적합합니다.
+
+스킬은 세 개의 독립 review lens를 병렬로 돌리고, 겹치는 finding은
+consolidation하며, 단일 reviewer만 제기한 finding은 별도 fact-check pass로
+검증한 뒤 적용합니다. HIGH/CRITICAL finding만 요구하는 이유는, 이 workflow를
+만든 실제 세션에서 MEDIUM finding이 대부분 noise였고 실제 적용 가치가 낮았기
+때문입니다.
+
+false positive와 과도하게 큰 commit이 주요 리스크인 큰 code review에 잘
+맞습니다. 사소한 PR, formatter-only diff, 작은 단일 파일 수정에는 쓰지 않는
+쪽이 낫습니다.
+
+### `zoom-caption-capture`
+
+사용자가 이미 Zoom Web Client 회의에 들어가 있고 live caption이 보이는
+상태에서 transcript나 회의록 원천 자료를 만들고 싶을 때 사용합니다. 스킬은
+Zoom의 `iframe#webclient` 내부에 `MutationObserver`를 붙여 caption snapshot을
+기록하고, JSON dump를 만든 뒤 Markdown으로 변환할 수 있게 합니다.
+
+핵심 설계는 먼저 무손실로 캡처하고 cleanup은 나중에 하는 것입니다. Zoom
+caption box는 rolling window라서, 스킬은 raw fragment를 보존하고 token-level
+overlap merge는 중간 결과로만 사용합니다. 최종 회의록은 captured payload를
+기준으로 한 번 더 정리하는 흐름을 전제로 합니다.
+
+web-client Zoom 회의에서 caption이 이미 켜져 있을 때 가장 잘 맞습니다. 사용자를
+대신해 회의에 join하지 않고, native Zoom app에는 적용되지 않으며, Zoom이
+caption initial만 노출하는 경우 full speaker name을 추론하지 않습니다.
+
 ## 작성 컨벤션
 
 - Frontmatter: `name`, `description`; Claude skill은 필요 시 `argument-hint`, `allowed-tools` 추가

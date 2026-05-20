@@ -49,6 +49,38 @@ policy plus child repositories, private local context, MCP setup, or generated
 instruction files to verify. For a single small repo, use the lightweight
 inventory, rewrite, and validation parts only.
 
+### `triangulated-review`
+
+Use when a normal single-reviewer pass is too low-confidence: after a
+substantial feature merge, before a public release, or before applying a risky
+quality/security fix set.
+
+The skill runs three independent review lenses in parallel, consolidates
+overlapping findings, and sends single-reviewer findings through one fact-check
+pass before anything is applied. It intentionally asks reviewers for
+HIGH/CRITICAL findings only, because the original session that produced this
+workflow found MEDIUM findings to be high-noise and rarely worth applying.
+
+Best fit: larger code reviews where false positives and over-broad commits are
+the main risk. Skip it for trivial PRs, formatter-only diffs, and small
+single-file fixes.
+
+### `zoom-caption-capture`
+
+Use when the user is already in a Zoom Web Client meeting with live captions
+visible and wants a transcript or meeting-minutes source. The skill attaches a
+`MutationObserver` inside Zoom's `iframe#webclient`, records raw caption
+snapshots, and dumps JSON that can be converted to Markdown.
+
+The core design is lossless capture first, cleanup later. Zoom captions are a
+rolling window, so the skill preserves raw fragments and performs token-level
+overlap merging only as a best-effort intermediate step; final minutes should
+still be cleaned up from the captured payload.
+
+Best fit: web-client Zoom meetings where captions are already enabled. It does
+not join meetings for the user, does not work with the native Zoom app, and
+does not infer full speaker names when Zoom only exposes caption initials.
+
 ## Authoring conventions
 
 - Frontmatter: `name`, `description`; Claude skills may also use `argument-hint`, `allowed-tools` as needed
