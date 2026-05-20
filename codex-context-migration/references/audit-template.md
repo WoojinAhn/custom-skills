@@ -27,6 +27,8 @@ Destination: `<destination path>`
 - Codex instruction size risk:
 - Source `AGENTS.md` trust mode: `trusted` / `generated-review` / `unknown`
 - Parent policy mode for child Git repositories: `isolated` / `inherit-parent`
+- Target posture: `codex-native` / `dual-run-current-workspace`
+- `CLAUDE.md` disposition: absorbed / retained-source / retained-active / omitted
 - Parent policy reference coverage:
 - Child repo migration selection mode: `all` / `selected` / `defer-children`
 - Child repo selection coverage:
@@ -58,6 +60,7 @@ Destination: `<destination path>`
 | Child repo | Existing context | Action | Reason |
 | --- | --- | --- | --- |
 | `example-repo` | `CLAUDE.md`, no `AGENTS.md` | `include-native` | Durable repo facts are concise |
+| `current-claude-repo` | active Claude workspace | `include-dual-run` | Preserve `CLAUDE.md`; add Codex entry point |
 | `claude-config` | Claude settings sync repo | `defer` / `exclude` | Claude-native config/tooling requires explicit user opt-in |
 | `old-lab` | Claude hooks only | `defer` | Too tool-specific for this pass |
 | `vendor/example` | none | `exclude` | Vendored or generated material |
@@ -112,6 +115,8 @@ Destination: `<destination path>`
 - Actual copied child repo coverage:
 - Actual instruction rewrite coverage:
 - Target authority statement coverage:
+- Target posture coverage:
+- Dual-run bridge coverage:
 - Parent policy reference coverage:
 - Claude rules/local/import disposition:
 - Claude runtime config disposition:

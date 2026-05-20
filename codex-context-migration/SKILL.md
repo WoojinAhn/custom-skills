@@ -48,7 +48,14 @@ decision:
 
 1. Establish the migration scope before copying or rewriting.
 
-Ask for, infer, or explicitly record these choices before starting:
+Ask for, infer, or explicitly record these choices before starting.
+
+Do not infer the choices that can materially change files. Ask the user
+explicitly before copying or rewriting when any of these are not already stated:
+copy mode, target posture, parent policy mode, child repo migration selection,
+and whether child repos should be native, bridge, or dual-run. The target
+posture must always be confirmed in the user's words because `codex-native`
+and `dual-run-current-workspace` require opposite handling of `CLAUDE.md`.
 
 - Source root and destination root.
 - Copy mode:
@@ -66,6 +73,17 @@ Ask for, infer, or explicitly record these choices before starting:
   - `inherit-parent`: child repos should follow workspace/root policy, similar
     to Claude-style parent memory. Add or update each child `AGENTS.md` with an
     explicit reference to the parent policy.
+- Target posture:
+  - `codex-native`: the destination is intended to be operated primarily by
+    Codex. Convert durable Claude-era context into Codex-native `AGENTS.md`
+    files. Keep `CLAUDE.md` only as retained source material or remove it from
+    the active path when the user explicitly wants a clean Codex workspace.
+  - `dual-run-current-workspace`: the destination is the current workspace that
+    is still actively operated by Claude Code, and Codex is being added
+    alongside it. Preserve `CLAUDE.md` and Claude runtime files unless they are
+    private/generated exclusions. Add `AGENTS.md` as a Codex entry point or
+    bridge, but do not rewrite or delete Claude-native behavior just to make the
+    workspace look Codex-only.
 - Child repo migration selection:
   - `all`: migrate every discovered child repo unless a concrete exclusion
     risk is found.
@@ -73,8 +91,9 @@ Ask for, infer, or explicitly record these choices before starting:
     and ask the user to confirm before modifying child repos.
   - `defer-children`: migrate only the workspace/root context now; leave child
     repos untouched and record that coverage is deferred.
-- Whether child Git repositories should receive native `AGENTS.md` files now
-  or temporary bridge files.
+- Whether child Git repositories should receive native `AGENTS.md` files now,
+  temporary bridge files, or dual-run bridge files that intentionally keep
+  `CLAUDE.md` authoritative for Claude while adding Codex routing.
 
 If a source `AGENTS.md` appears generated, do not treat that as a defect by
 itself. Treat it as a signal to verify provenance, intended transformations,
@@ -191,13 +210,18 @@ Generation alone is not a quality signal. Judge generated or converted files
 by whether they preserve domain facts, update execution context correctly, and
 cover the intended workspace scope.
 
-4. Decide child repo coverage, then native, bridge, private, or omit.
+4. Decide child repo coverage, then native, bridge, dual-run, private, or omit.
 
 For each child repo, choose one action:
 
 - `include-native`: migrate or create a native repo `AGENTS.md`.
 - `include-bridge`: create a bridge `AGENTS.md` because native flattening is
   unsafe in the current pass.
+- `include-dual-run`: keep the repo's Claude-native files active and add a
+  Codex `AGENTS.md` that points to the applicable parent policy plus the local
+  Claude source. Use this when the target posture is
+  `dual-run-current-workspace` or when the repo is intentionally still operated
+  by Claude Code.
 - `include-copy-only`: copy the repo when `full-workspace` is requested, but do
   not rewrite instructions yet.
 - `exclude`: do not copy or rewrite this child repo during this migration.
@@ -227,14 +251,19 @@ For material inside an included repo, choose one destination:
 - `native`: write concise Codex-oriented `AGENTS.md`.
 - `bridge`: create a short `AGENTS.md` that points to parent layers and the
   local source file when the source is too large to flatten safely.
+- `dual-run-bridge`: create a short `AGENTS.md` for Codex while preserving
+  `CLAUDE.md` as the active Claude instruction source. This is not a failed
+  native migration; it is the correct shape when the user wants both agents to
+  share the same current workspace.
 - `private`: copy to a local private path such as
   `~/.codex/private/<domain>/...` and reference it from global instructions
   only when needed.
 - `omit`: leave out and document why.
 
-Prefer `native` for child repositories when the durable source is concise
-enough to flatten. Use a bridge only when native conversion would be unsafe in
-the current pass.
+Prefer `native` for child repositories when the target posture is
+`codex-native` and the durable source is concise enough to flatten. Use a
+bridge only when native conversion would be unsafe in the current pass. Use
+`dual-run-bridge` when preserving the Claude workspace is part of the goal.
 
 5. Build the layer model.
 
@@ -303,13 +332,17 @@ Do not perform broad product-name replacement. Preserve domain facts such as:
 - Dataset labels, examples, URLs, and directory names that are part of the
   project's subject matter.
 
-Rewrite only execution context:
+Rewrite only execution context, and only for the target posture:
 
 - Active instruction file names: `CLAUDE.md` -> `AGENTS.md` when describing
-  Codex behavior.
+  Codex behavior in a `codex-native` target. In
+  `dual-run-current-workspace`, keep references to `CLAUDE.md` when they
+  describe Claude Code behavior or the preserved Claude source of truth.
 - Workspace paths: source root -> destination root.
 - Local private/reference paths: `.claude/...` -> Codex-equivalent private or
-  reference paths when appropriate.
+  reference paths when appropriate. In dual-run mode, keep `.claude/...` paths
+  that are still used by Claude Code and mark Codex handling as deferred or
+  separate.
 - Tool-specific workflow text only when the target behavior is actually Codex
   behavior.
 
@@ -341,6 +374,22 @@ parent policy automatically when sessions start here.
 
 Do not add this reference blindly. The user must choose `inherit-parent`, and
 the referenced parent file must be relevant to that child repo.
+
+For `dual-run-current-workspace`, use a different authority statement:
+
+```markdown
+## Instruction Authority
+
+This `AGENTS.md` is the Codex entry point for this repository. `CLAUDE.md`
+remains the Claude Code instruction source and is intentionally preserved. When
+working through Codex, follow this file plus any explicitly referenced parent
+policy. When working through Claude Code, follow `CLAUDE.md`.
+```
+
+Do not call a dual-run result incomplete merely because `CLAUDE.md` remains in
+place. Judge it by whether Codex has a clear entry point, parent-policy
+references are explicit, and Claude-specific behavior is not accidentally
+misrepresented as Codex behavior.
 
 8. Write an audit.
 
@@ -399,6 +448,9 @@ A migration is not complete until these are true:
   `inherit-parent`. If `inherit-parent`, child `AGENTS.md` files explicitly
   reference the parent workspace policy because Codex does not load it across
   independent Git repo boundaries.
+- Target posture is recorded as `codex-native` or
+  `dual-run-current-workspace`, and the treatment of `CLAUDE.md` matches that
+  posture.
 - Child repo migration selection is recorded, including include/exclude/defer
   decisions and reasons. Excluded or deferred child repos are not modified, and
   `include-copy-only` repos are not instruction-rewritten.
@@ -471,6 +523,31 @@ flattened.
 ## Critical Rules
 
 - Small set of safety and workflow rules that must be loaded immediately.
+```
+
+## Dual-run AGENTS.md Shape
+
+Use this when the current workspace remains Claude-operated and Codex is added
+alongside it:
+
+```markdown
+# repo-name
+
+Codex entry point for this repository.
+
+Follow `/workspace/AGENTS.md` for Codex workspace policy.
+
+## Instruction Authority
+
+This `AGENTS.md` is for Codex. `CLAUDE.md` remains the Claude Code instruction
+source and is intentionally preserved. Do not rewrite Claude-specific commands,
+hooks, or slash-command workflows unless the user asks for a Codex-native
+conversion.
+
+## Codex Notes
+
+- Repo facts that Codex must know immediately.
+- Any Codex-specific command, safety, or parent-policy differences.
 ```
 
 ## Private Context
