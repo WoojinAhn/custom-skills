@@ -23,7 +23,7 @@ The target agent picks it up on the next session.
 
 | Skill | One-liner |
 |---|---|
-| [`codex-context-migration`](codex-context-migration/SKILL.md) | Audit-first migration from Claude-era repo context into Codex `AGENTS.md`, covering context-only vs full-workspace copy, generated instruction review, native/bridge/private/omit decisions, private-context separation, MCP audit, and instruction-load validation. |
+| [`codex-context-migration`](codex-context-migration/SKILL.md) | Audit-first migration from Claude-era repo context into Codex `AGENTS.md`, covering context-only vs full-workspace copy, generated instruction review, parent-policy inheritance for child repos, native/bridge/private/omit decisions, private-context separation, MCP audit, and instruction-load validation. |
 | [`triangulated-review`](triangulated-review/SKILL.md) | Three-reviewer parallel code audit (senior + codex max + simplify) with codex fact-check on single-reviewer findings. Cost-pruned form of the 5-reviewer pass run on CursorMeter #61. |
 | [`zoom-caption-capture`](zoom-caption-capture/SKILL.md) | Stream Zoom Web Client live captions via a `MutationObserver` inside `iframe#webclient`, with token-level overlap merging and Blob-download dump. Lossless raw buffer + deferred cleanup so an LLM pass can produce final minutes. |
 
@@ -35,9 +35,10 @@ Use when moving a workspace or repository from Claude-era context files such as
 
 The skill starts by recording source/destination roots, copy mode
 (`context-only` or `full-workspace`), and the trust level of existing
-`AGENTS.md` files. It then classifies source material, decides whether each
-area should become native instructions, a bridge, private local context, or an
-omission, and validates the result with `codex exec`.
+`AGENTS.md` files. It also asks whether independent child Git repositories
+should inherit workspace/root policy. It then classifies source material,
+decides whether each area should become native instructions, a bridge, private
+local context, or an omission, and validates the result with `codex exec`.
 
 It treats generated or converted `AGENTS.md` files as provenance to review, not
 as defects by default. Quality claims must be backed by repo facts, stale

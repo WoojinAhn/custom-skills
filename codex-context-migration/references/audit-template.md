@@ -16,6 +16,8 @@ Destination: `<destination path>`
 - Copied/excluded assets:
 - Global/user instruction loading mechanism:
 - Source `AGENTS.md` trust mode: `trusted` / `generated-review` / `unknown`
+- Parent policy mode for child Git repositories: `isolated` / `inherit-parent`
+- Parent policy reference coverage:
 
 ## Section Classification
 
@@ -50,6 +52,7 @@ Destination: `<destination path>`
 - Source child `AGENTS.md` count:
 - Target child `AGENTS.md` count:
 - Target authority statement coverage:
+- Parent policy reference coverage:
 - Source generated/converted files disposition:
 - Stale source path/reference search:
 - Suspicious mechanical substitution search:

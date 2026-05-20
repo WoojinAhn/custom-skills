@@ -61,6 +61,11 @@ Ask for, infer, or explicitly record these choices before starting:
     converted; verify it against durable sources and repo facts before using it
     as source.
   - `unknown`: compare against `CLAUDE.md` and repo facts before using it.
+- Parent policy mode for child Git repositories:
+  - `isolated`: child repos stand alone; do not reference workspace policy.
+  - `inherit-parent`: child repos should follow workspace/root policy, similar
+    to Claude-style parent memory. Add or update each child `AGENTS.md` with an
+    explicit reference to the parent policy.
 - Whether child Git repositories should receive native `AGENTS.md` files now
   or temporary bridge files.
 
@@ -134,9 +139,16 @@ the current pass.
   instructions. Use `~/.codex/AGENTS.md` only when that path is valid for the
   user's setup; otherwise record the actual mechanism in the audit.
 - Workspace policy can live at `<workspace>/AGENTS.md`.
-- If children are separate Git repositories, do not assume parent discovery.
-  Add a global dispatcher that tells Codex to read the workspace policy when
-  working under that tree.
+- If children are separate Git repositories, do not assume parent discovery:
+  Codex loads project instructions from the current Git/project root up to the
+  current working directory, so a parent workspace `AGENTS.md` outside the child
+  repo root is not automatically active.
+- If parent policy mode is `inherit-parent`, add an explicit parent-policy
+  reference to each child repo `AGENTS.md`. This may be a native repo file with
+  a parent-policy paragraph, or a bridge file when repo-specific context is not
+  ready to flatten.
+- If parent policy mode is `isolated`, record that choice in the audit and do
+  not add parent references to child repos.
 - Repo `AGENTS.md` should contain only repo-specific commands, architecture,
   gotchas, and exceptions.
 
@@ -197,6 +209,18 @@ when present, is retained only as migration source material; if it differs
 from this file, follow `AGENTS.md`.
 ```
 
+When parent policy mode is `inherit-parent`, include a parent-policy reference
+near the top of each child `AGENTS.md`:
+
+```markdown
+Follow `<absolute-or-repo-relative-parent>/AGENTS.md` for workspace policy.
+This child repository is an independent Git repo, so Codex will not load the
+parent policy automatically when sessions start here.
+```
+
+Do not add this reference blindly. The user must choose `inherit-parent`, and
+the referenced parent file must be relevant to that child repo.
+
 8. Write an audit.
 
 Create one audit file per repo or workspace. Use
@@ -248,6 +272,10 @@ A migration is not complete until these are true:
 - The target has an `AGENTS.md` or an intentional bridge `AGENTS.md`.
 - Workspace/global layering is explicit, especially when child directories are
   separate Git repositories.
+- Parent policy mode for child Git repositories is recorded as `isolated` or
+  `inherit-parent`. If `inherit-parent`, child `AGENTS.md` files explicitly
+  reference the parent workspace policy because Codex does not load it across
+  independent Git repo boundaries.
 - Each migrated repo or context directory has an audit record.
 - Private or sensitive context is either omitted or moved to a local private
   reference, not copied into repo instructions.
