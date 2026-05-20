@@ -66,6 +66,13 @@ Ask for, infer, or explicitly record these choices before starting:
   - `inherit-parent`: child repos should follow workspace/root policy, similar
     to Claude-style parent memory. Add or update each child `AGENTS.md` with an
     explicit reference to the parent policy.
+- Child repo migration selection:
+  - `all`: migrate every discovered child repo unless a concrete exclusion
+    risk is found.
+  - `selected`: inventory child repos, propose include/exclude/defer choices,
+    and ask the user to confirm before modifying child repos.
+  - `defer-children`: migrate only the workspace/root context now; leave child
+    repos untouched and record that coverage is deferred.
 - Whether child Git repositories should receive native `AGENTS.md` files now
   or temporary bridge files.
 
@@ -96,6 +103,20 @@ find <source-root> -name .git -type d -prune | wc -l
 find <destination-root> -name .git -type d -prune | wc -l
 ```
 
+List child repo candidates before modifying them:
+
+```bash
+find <source-root> -mindepth 2 -name .git -type d -prune -print
+```
+
+For each candidate, record path, existing `CLAUDE.md`, existing `AGENTS.md`,
+repo activity if visible, and whether it looks generated, vendored, archived,
+private, or tightly coupled to Claude-specific tooling.
+
+When the terminal supports interactive checkbox selection, use it for the child
+repo include/exclude pass. Otherwise present a plain-text checklist and wait for
+confirmation before touching child repos.
+
 3. Classify each section or memory file.
 
 Use these buckets:
@@ -119,7 +140,31 @@ Generation alone is not a quality signal. Judge generated or converted files
 by whether they preserve domain facts, update execution context correctly, and
 cover the intended workspace scope.
 
-4. Decide native, bridge, private, or omit.
+4. Decide child repo coverage, then native, bridge, private, or omit.
+
+For each child repo, choose one action:
+
+- `include-native`: migrate or create a native repo `AGENTS.md`.
+- `include-bridge`: create a bridge `AGENTS.md` because native flattening is
+  unsafe in the current pass.
+- `include-copy-only`: copy the repo when `full-workspace` is requested, but do
+  not rewrite instructions yet.
+- `exclude`: do not copy or rewrite this child repo during this migration.
+- `defer`: leave the repo untouched for a later pass.
+
+Good exclusion or defer candidates include:
+
+- Archived, stale, or unrelated repos under the same workspace root.
+- Vendored, generated, sample, or throwaway projects.
+- Repos containing private local experiments or sensitive operational context.
+- Repos whose useful context is mostly Claude hooks, slash commands, session
+  mechanics, or other tool-specific behavior that cannot be rewritten safely.
+- Repos with no durable project facts to migrate in the current pass.
+
+Do not exclude a repo just because it contains Claude-era files. Exclude or
+defer it only when there is a concrete reason, and record that reason.
+
+For material inside an included repo, choose one destination:
 
 - `native`: write concise Codex-oriented `AGENTS.md`.
 - `bridge`: create a short `AGENTS.md` that points to parent layers and the
@@ -160,6 +205,9 @@ document that code repositories were intentionally not copied.
 For `full-workspace`, copy code and ordinary project files too, while still
 excluding generated local state.
 
+- Apply the confirmed child repo selection before copying. `exclude` and
+  `defer` child repos are not copied or rewritten. `include-copy-only` repos
+  are copied but their instruction files are not rewritten in this pass.
 - Preserve tracked files, even if they are named `.env`.
 - Exclude untracked local secrets and generated state: `.venv/`, `node_modules/`,
   caches, build output, `.pytest_cache/`, `.playwright-mcp/`, and raw session
@@ -250,6 +298,8 @@ For generated or converted source `AGENTS.md`, compare quality against the nativ
 target using objective checks:
 
 - Count source and target child `AGENTS.md` files.
+- Compare the confirmed child repo selection against actual copied/rewritten
+  repos.
 - Compare generated or converted `AGENTS.md` files against durable sources for
   unusually shallow changes, such as mostly renamed headings, unchanged
   tool-specific procedures, or broad product-name substitutions.
@@ -276,6 +326,9 @@ A migration is not complete until these are true:
   `inherit-parent`. If `inherit-parent`, child `AGENTS.md` files explicitly
   reference the parent workspace policy because Codex does not load it across
   independent Git repo boundaries.
+- Child repo migration selection is recorded, including include/exclude/defer
+  decisions and reasons. Excluded or deferred child repos are not modified, and
+  `include-copy-only` repos are not instruction-rewritten.
 - Each migrated repo or context directory has an audit record.
 - Private or sensitive context is either omitted or moved to a local private
   reference, not copied into repo instructions.

@@ -18,6 +18,16 @@ Destination: `<destination path>`
 - Source `AGENTS.md` trust mode: `trusted` / `generated-review` / `unknown`
 - Parent policy mode for child Git repositories: `isolated` / `inherit-parent`
 - Parent policy reference coverage:
+- Child repo migration selection mode: `all` / `selected` / `defer-children`
+- Child repo selection coverage:
+
+## Child Repo Selection
+
+| Child repo | Existing context | Action | Reason |
+| --- | --- | --- | --- |
+| `example-repo` | `CLAUDE.md`, no `AGENTS.md` | `include-native` | Durable repo facts are concise |
+| `old-lab` | Claude hooks only | `defer` | Too tool-specific for this pass |
+| `vendor/example` | none | `exclude` | Vendored or generated material |
 
 ## Section Classification
 
@@ -51,6 +61,9 @@ Destination: `<destination path>`
 
 - Source child `AGENTS.md` count:
 - Target child `AGENTS.md` count:
+- Confirmed child repo selection:
+- Actual copied child repo coverage:
+- Actual instruction rewrite coverage:
 - Target authority statement coverage:
 - Parent policy reference coverage:
 - Source generated/converted files disposition:
