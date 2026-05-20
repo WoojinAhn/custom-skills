@@ -58,6 +58,7 @@ Destination: `<destination path>`
 | Child repo | Existing context | Action | Reason |
 | --- | --- | --- | --- |
 | `example-repo` | `CLAUDE.md`, no `AGENTS.md` | `include-native` | Durable repo facts are concise |
+| `claude-config` | Claude settings sync repo | `defer` / `exclude` | Claude-native config/tooling requires explicit user opt-in |
 | `old-lab` | Claude hooks only | `defer` | Too tool-specific for this pass |
 | `vendor/example` | none | `exclude` | Vendored or generated material |
 

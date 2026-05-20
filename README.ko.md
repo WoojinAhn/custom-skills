@@ -38,6 +38,8 @@ repo가 workspace/root 정책을 상속해야 하는지도 묻고, 각 하위 re
 exclude, copy-only, defer 중 어떻게 처리할지도 먼저 확정합니다. 그다음 source
 material을 분류하고, 각 영역을 native instruction, bridge, private local
 context, omit 중 어디에 둘지 결정한 뒤 `codex exec`로 결과를 검증합니다.
+`claude-config` 같은 Claude-native config/tooling repo는 `full-workspace`
+복사라고 자동 포함하지 않고, 명시적인 defer/exclude 후보로 먼저 올립니다.
 
 큰 workspace에서는 포함된 `scripts/inventory.py` helper로 사용자가 지정한
 출발지/목적지 경로 기준의 read-only 하위 repo/context 표를 만들 수 있습니다.

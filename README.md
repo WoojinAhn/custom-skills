@@ -41,6 +41,9 @@ included, excluded, copied without instruction rewrite, or deferred. It then
 classifies source material, decides whether each area should become native
 instructions, a bridge, private local context, or an omission, and validates
 the result with `codex exec`.
+Claude-native config/tooling repos such as `claude-config` are treated as
+explicit defer/exclude candidates rather than silently included by
+`full-workspace` copy.
 
 For larger workspaces, the bundled `scripts/inventory.py` helper can generate a
 read-only child repo/context table from user-provided source and destination

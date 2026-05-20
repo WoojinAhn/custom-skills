@@ -46,6 +46,29 @@ WEAK_EXCLUSION_NAMES = {
     "vendored",
 }
 
+CLAUDE_NATIVE_KEYWORDS = {"claude", "cc"}
+CLAUDE_NATIVE_QUALIFIERS = {
+    "agent",
+    "agents",
+    "code",
+    "command",
+    "commands",
+    "config",
+    "hook",
+    "hooks",
+    "mcp",
+    "plugin",
+    "plugins",
+    "setting",
+    "settings",
+    "setup",
+    "skill",
+    "skills",
+    "sync",
+    "tool",
+    "tools",
+}
+
 DEFAULT_CODEX_DOC_MAX_BYTES = 32768
 
 IMPORT_RE = re.compile(
@@ -223,6 +246,23 @@ def settings_keys(repo: Path) -> set[str]:
     return keys
 
 
+def name_tokens(path_text: str) -> set[str]:
+    return {token for token in re.split(r"[^a-z0-9]+", path_text.lower()) if token}
+
+
+def looks_claude_native(rel_path: str, repo: Path) -> bool:
+    tokens = name_tokens(rel_path)
+    repo_tokens = name_tokens(repo.name)
+    keyword_hit = bool(tokens & CLAUDE_NATIVE_KEYWORDS)
+    qualifier_hit = bool(tokens & CLAUDE_NATIVE_QUALIFIERS)
+
+    if "claude" in repo_tokens:
+        return True
+    if keyword_hit and qualifier_hit:
+        return True
+    return False
+
+
 def list_signals(repo: Path, rel_path: str, destination_repo: Path | None) -> list[str]:
     signals: list[str] = []
     claude_dir = repo / ".claude"
@@ -277,6 +317,11 @@ def list_signals(repo: Path, rel_path: str, destination_repo: Path | None) -> li
         signals.append("claude-settings-unreadable")
 
     path_parts = {part.lower() for part in Path(rel_path).parts}
+    if looks_claude_native(rel_path, repo):
+        signals.append("claude-native-repo")
+    path_tokens = name_tokens(rel_path)
+    if {"config", "settings", "sync"} & path_tokens and "claude" in path_tokens:
+        signals.append("claude-config-repo")
     if path_parts & WEAK_EXCLUSION_NAMES:
         signals.append("weak-exclusion-name")
 
@@ -310,6 +355,8 @@ def suggest_action(signals: list[str]) -> str:
         return "exclude-candidate"
     if "codex-doc-size-risk" in signal_set:
         return "review-size-risk"
+    if {"claude-native-repo", "claude-config-repo"} & signal_set:
+        return "defer-claude-native"
     if {"claude-local-md", "claude-home-imports", "claude-external-imports"} & signal_set:
         return "review-private-context"
     if claude_specific & signal_set and "agents-md" not in signal_set:
@@ -368,6 +415,9 @@ def inventory(source: Path, destination: Path | None, max_depth: int) -> list[di
                 "claude_external_imports_count": imports["external"],
                 "claude_unresolved_imports_count": imports["unresolved"],
                 "claude_settings_keys": sorted(claude_settings_keys),
+                "is_claude_native_repo": (
+                    "claude-native-repo" in signals or "claude-config-repo" in signals
+                ),
                 "agents_size_bytes": agents_size,
                 "agents_override_size_bytes": agents_override_size,
                 "signals": signals,
@@ -398,6 +448,7 @@ def print_markdown(rows: list[dict[str, object]]) -> None:
         "claude_rules_count",
         "claude_imports_count",
         "claude_unresolved_imports_count",
+        "is_claude_native_repo",
         "agents_size_bytes",
         "agents_override_size_bytes",
         "signals",

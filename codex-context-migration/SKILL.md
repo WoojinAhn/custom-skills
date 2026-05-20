@@ -208,12 +208,19 @@ Good exclusion or defer candidates include:
 - Archived, stale, or unrelated repos under the same workspace root.
 - Vendored, generated, sample, or throwaway projects.
 - Repos containing private local experiments or sensitive operational context.
+- Claude-native configuration or tooling repos, such as `claude-config`, mobile
+  Claude setup repos, Claude slash-command collections, Claude settings sync
+  repos, and Claude skill/plugin development repos.
 - Repos whose useful context is mostly Claude hooks, slash commands, session
   mechanics, or other tool-specific behavior that cannot be rewritten safely.
 - Repos with no durable project facts to migrate in the current pass.
 
 Do not exclude a repo just because it contains Claude-era files. Exclude or
 defer it only when there is a concrete reason, and record that reason.
+Conversely, do not silently include a Claude-native config/tooling repo just
+because `full-workspace` copy was requested or because it has a useful
+`CLAUDE.md`. Present it as `defer` or `exclude` unless the user explicitly opts
+in to copying or bridging that repo.
 
 For material inside an included repo, choose one destination:
 
