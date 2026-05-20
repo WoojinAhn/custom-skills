@@ -99,12 +99,13 @@ repos and to prepare the user confirmation checklist.
 ```bash
 git status --short --branch
 git remote -v
-find . -maxdepth 3 \( -name CLAUDE.md -o -name AGENTS.md -o -name .mcp.json -o -path '*/.claude/*' \) -print
+find . -maxdepth 3 \( -name CLAUDE.md -o -name CLAUDE.local.md -o -name AGENTS.md -o -name AGENTS.override.md -o -name .mcp.json -o -path '*/.claude/*' \) -print
 ```
 
 Also check Claude memory when applicable:
 
 ```bash
+test -f ~/.claude/CLAUDE.md && printf '%s\n' ~/.claude/CLAUDE.md
 find ~/.claude/projects -maxdepth 1 -type d | grep '<encoded-path-or-repo-name>'
 find ~/.claude/projects/<encoded-cwd>/memory -maxdepth 2 -type f -print
 ```
@@ -127,6 +128,20 @@ For each candidate, record path, existing `CLAUDE.md`, existing `AGENTS.md`,
 repo activity if visible, and whether it looks generated, vendored, archived,
 private, or tightly coupled to Claude-specific tooling.
 
+Claude instruction sources can be broader than a single top-level
+`CLAUDE.md`. Inventory these before rewriting:
+
+- `CLAUDE.md`: shared repo or workspace memory.
+- `.claude/CLAUDE.md`: project-local Claude memory, when present.
+- `CLAUDE.local.md`: local/private memory; normally private or omitted.
+- `.claude/rules/*.md`: path-scoped rules; migrate to nested `AGENTS.md` files
+  or references when scope matters, not blindly to the workspace root.
+- `@path` imports inside Claude markdown files; classify each imported file as
+  `inline`, `reference`, `private`, or `omit` before migration.
+- `~/.claude/CLAUDE.md` and `~/.claude/projects/...` memory when it is relevant
+  to the migrated workspace; treat personal/local content as private by
+  default.
+
 When the terminal supports interactive checkbox selection, use it for the child
 repo include/exclude pass. Otherwise present a plain-text checklist and wait for
 confirmation before touching child repos.
@@ -141,6 +156,28 @@ Use these buckets:
 - `tool-specific`: Claude hooks, slash commands, MCP startup, session behavior
 - `private-sensitive`: real people, employee IDs, credentials, internal routing
 - `stale-or-generic`: outdated paths, deleted commands, broad platitudes
+
+Classify Claude runtime configuration separately from instructions:
+
+- `.claude/settings.json` and `.claude/settings.local.json`: permissions,
+  hooks, model/tool defaults, and local overrides. Map to Codex `config.toml`,
+  Codex hooks/MCP setup, private local config, or defer; do not dump the raw
+  JSON into `AGENTS.md`.
+- Permission allow/deny patterns: split the durable policy intent from Claude
+  tool matcher syntax. Safety intent can become concise `AGENTS.md` guidance;
+  matcher syntax belongs in Codex config or a deferred runtime migration.
+- `.claude/hooks/` or hook entries in settings: executable runtime behavior.
+  Keep only durable intent in `AGENTS.md`; migrate executable behavior to the
+  Codex runtime only when the target environment supports it and the user
+  confirms it.
+- `.claude/commands/`: slash-command workflows. Convert to a Codex skill or
+  referenced procedure only when the workflow is still useful outside Claude.
+- `.claude/skills/`: Claude skill packages. Treat as skill-migration
+  candidates, not repo instruction text.
+- `.mcp.json`: MCP server config. Compare with the Codex MCP config shape,
+  required env, command, args, and enabled tools before migrating.
+- SessionStart or auto-memory behavior: classify the durable learning, not the
+  Claude-specific loading mechanism.
 
 Also classify each source `AGENTS.md`:
 
@@ -197,6 +234,16 @@ the current pass.
 - First identify how the target Codex environment loads global or user-level
   instructions. Use `~/.codex/AGENTS.md` only when that path is valid for the
   user's setup; otherwise record the actual mechanism in the audit.
+- Check for `AGENTS.override.md` in global, workspace, and repo scopes. It can
+  change instruction precedence and should not be overwritten or ignored.
+- Check the user's Codex `config.toml` when available for instruction-loading
+  settings such as `project_doc_fallback_filenames`, `project_doc_max_bytes`,
+  and `child_agents_md`. Record the observed values or that they were not
+  available.
+- Keep generated `AGENTS.md` and `AGENTS.override.md` compact. If either file
+  is near or above the configured project-doc byte limit, split detailed
+  procedures into references and keep only routing instructions in the loaded
+  file.
 - Workspace policy can live at `<workspace>/AGENTS.md`.
 - If children are separate Git repositories, do not assume parent discovery:
   Codex loads project instructions from the current Git/project root up to the
@@ -258,6 +305,11 @@ Rewrite only execution context:
   reference paths when appropriate.
 - Tool-specific workflow text only when the target behavior is actually Codex
   behavior.
+
+For Claude `@import` sources, avoid assuming Codex will load them the same way.
+Inline only short durable rules that must always apply. Use explicit reference
+links for long procedures, private local references for sensitive material, and
+omit stale imports with an audit note.
 
 Each native child `AGENTS.md` should state its authority relationship:
 
@@ -352,6 +404,8 @@ A migration is not complete until these are true:
   explicitly deferred.
 - `codex exec` read-only validation reports the expected active instruction
   files.
+- Codex discovery config and override files are checked or explicitly marked
+  unavailable, and oversized instruction-file risk is handled or documented.
 - Deferred native flattening, bridge-only areas, and omitted material are
   documented.
 - If full-workspace copy was requested, source and destination repo counts

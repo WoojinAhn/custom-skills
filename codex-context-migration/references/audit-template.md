@@ -12,15 +12,46 @@ Destination: `<destination path>`
 - Destination root:
 - Copy mode: `context-only` / `full-workspace`
 - Inventory command:
+- Import scan command:
+- Import recursion depth checked:
 - Source Git repo count:
 - Destination Git repo count:
+- Claude rule files discovered:
+- Local memory files discovered:
 - Copied/excluded assets:
 - Global/user instruction loading mechanism:
+- Codex `AGENTS.override.md` coverage:
+- Codex `project_doc_fallback_filenames`:
+- Codex `project_doc_max_bytes`:
+- Codex `child_agents_md`:
+- Codex instruction size risk:
 - Source `AGENTS.md` trust mode: `trusted` / `generated-review` / `unknown`
 - Parent policy mode for child Git repositories: `isolated` / `inherit-parent`
 - Parent policy reference coverage:
 - Child repo migration selection mode: `all` / `selected` / `defer-children`
 - Child repo selection coverage:
+
+## Claude Source Coverage
+
+| Source type | Found | Action |
+| --- | --- | --- |
+| `CLAUDE.md` |  |  |
+| `.claude/CLAUDE.md` |  |  |
+| `CLAUDE.local.md` |  | Private / omitted / migrated |
+| `.claude/rules/*.md` |  | Nested `AGENTS.md` / reference / omitted |
+| Claude `@import` files |  | Inline / reference / private / omitted |
+
+## Runtime Config Classification
+
+| Source | Runtime type | Risk | Codex destination | Action | Evidence |
+| --- | --- | --- | --- | --- | --- |
+| `.claude/settings.json` | permissions/hooks/defaults |  | Codex config / private / defer |  |  |
+| `.claude/settings.local.json` | local overrides | private/local | private / omit |  |  |
+| `.claude/hooks` or hook entries | executable runtime behavior | writes/network/production | Codex hook / defer / omit |  |  |
+| `.claude/commands` | slash-command workflow | Claude-only syntax/private routing | Codex skill candidate / reference / omit |  |  |
+| `.claude/skills` | Claude skill package | tool/runtime assumptions | skill migration candidate / defer |  |  |
+| `.mcp.json` | MCP server config | credentials/write scope | Codex MCP config / defer |  |  |
+| `SessionStart` | startup context injection | dynamic/private context | `AGENTS.md` / private / defer |  |  |
 
 ## Child Repo Selection
 
@@ -45,6 +76,18 @@ Destination: `<destination path>`
 | `example.md` | cross-agent-rule | Moved to `AGENTS.md` |
 | `team_routing.md` | private-sensitive | Moved to private local reference |
 
+## Claude Rules Classification
+
+| Rule file | Scope | Action | Evidence |
+| --- | --- | --- | --- |
+| `.claude/rules/example.md` | path-scoped | Nested `AGENTS.md` / reference / omitted |  |
+
+## Import Classification
+
+| Import | Source file | Resolved | Action | Evidence |
+| --- | --- | --- | --- | --- |
+| `@docs/example.md` | `CLAUDE.md` | yes/no | Inline / reference / private / omitted |  |
+
 ## Source AGENTS.md Assessment
 
 | Source `AGENTS.md` | Classification | Evidence | Action |
@@ -55,6 +98,8 @@ Destination: `<destination path>`
 
 - Raw session logs:
 - MCP registration:
+- Claude runtime config:
+- Claude rules/imports:
 - Long procedures:
 - Stale material:
 
@@ -67,6 +112,14 @@ Destination: `<destination path>`
 - Actual instruction rewrite coverage:
 - Target authority statement coverage:
 - Parent policy reference coverage:
+- Claude rules/local/import disposition:
+- Claude runtime config disposition:
+- Codex override/config disposition:
+- Codex instruction size risk:
+- `.claude/rules` coverage:
+- `CLAUDE.local.md` disposition:
+- `@import` coverage:
+- Unresolved/broken imports:
 - Source generated/converted files disposition:
 - Stale source path/reference search:
 - Suspicious mechanical substitution search:

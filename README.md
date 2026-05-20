@@ -23,7 +23,7 @@ The target agent picks it up on the next session.
 
 | Skill | One-liner |
 |---|---|
-| [`codex-context-migration`](codex-context-migration/SKILL.md) | Audit-first migration from Claude-era repo context into Codex `AGENTS.md`, covering context-only vs full-workspace copy, child repo include/exclude selection, generated instruction review, parent-policy inheritance for child repos, native/bridge/private/omit decisions, private-context separation, MCP audit, and instruction-load validation. |
+| [`codex-context-migration`](codex-context-migration/SKILL.md) | Audit-first migration from Claude-era repo context into Codex `AGENTS.md`, covering context-only vs full-workspace copy, child repo include/exclude selection, Claude rules/local/import inventory, generated instruction review, parent-policy inheritance, Codex discovery/config audit, runtime config separation, MCP audit, and instruction-load validation. |
 | [`triangulated-review`](triangulated-review/SKILL.md) | Three-reviewer parallel code audit (senior + codex max + simplify) with codex fact-check on single-reviewer findings. Cost-pruned form of the 5-reviewer pass run on CursorMeter #61. |
 | [`zoom-caption-capture`](zoom-caption-capture/SKILL.md) | Stream Zoom Web Client live captions via a `MutationObserver` inside `iframe#webclient`, with token-level overlap merging and Blob-download dump. Lossless raw buffer + deferred cleanup so an LLM pass can produce final minutes. |
 
@@ -44,13 +44,19 @@ the result with `codex exec`.
 
 For larger workspaces, the bundled `scripts/inventory.py` helper can generate a
 read-only child repo/context table from user-provided source and destination
-paths. The helper is only an inventory aid; final include/exclude decisions
-remain part of the audit workflow.
+paths, including `.claude/rules`, `CLAUDE.local.md`, Claude `@import` counts,
+Codex override files, and weak runtime-config signals. The helper is only an
+inventory aid; final include/exclude decisions remain part of the audit
+workflow.
 
 It treats generated or converted `AGENTS.md` files as provenance to review, not
 as defects by default. Quality claims must be backed by repo facts, stale
 reference checks, and evidence that domain facts were preserved while execution
 context was updated.
+
+Claude runtime configuration such as hooks, permissions, slash commands, skills,
+MCP servers, and SessionStart behavior is classified separately from durable
+instructions so `AGENTS.md` does not become a dump of Claude-specific mechanics.
 
 Best fit: users migrating from Claude-era context who have workspace-root
 policy plus child repositories, private local context, MCP setup, or generated
