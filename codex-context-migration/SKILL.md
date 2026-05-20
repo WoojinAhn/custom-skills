@@ -13,6 +13,24 @@ state.
 This is a guidance-based skill. Prefer judgment and audit records over a single
 automatic rewrite.
 
+## Good Fit
+
+Use this skill when the migration has more than one source of context or when
+blind conversion could lose important intent:
+
+- A workspace root has policy that should apply across multiple child
+  repositories.
+- A repository has both durable project facts and tool-specific Claude-era
+  mechanics.
+- Private local context, MCP configuration, or memory files need separation
+  before instructions are made public or shared.
+- Existing `AGENTS.md` files may be generated, converted, stale, or mixed with
+  source material that needs verification.
+
+For a small single repository with one short `CLAUDE.md`, use only the
+inventory, classification, native rewrite, and validation parts of the
+workflow.
+
 ## Core Rule
 
 Do not treat migration as a filename rename. Treat it as a source-of-truth
@@ -112,7 +130,9 @@ the current pass.
 
 5. Build the layer model.
 
-- Global defaults live in `~/.codex/AGENTS.md`.
+- First identify how the target Codex environment loads global or user-level
+  instructions. Use `~/.codex/AGENTS.md` only when that path is valid for the
+  user's setup; otherwise record the actual mechanism in the audit.
 - Workspace policy can live at `<workspace>/AGENTS.md`.
 - If children are separate Git repositories, do not assume parent discovery.
   Add a global dispatcher that tells Codex to read the workspace policy when
@@ -310,9 +330,12 @@ Good private candidates:
 
 Recommended pattern:
 
-1. Copy to `~/.codex/private/<domain>/<name>.md`.
+1. Copy to a private local path such as
+   `~/.codex/private/<domain>/<name>.md`, or the equivalent private path for
+   the target Codex setup.
 2. `chmod 600` the file.
-3. Add a narrow reference in `~/.codex/AGENTS.md` describing when to read it.
+3. Add a narrow reference in the active global/user instruction location
+   describing when to read it.
 4. State that private data must not be copied into repo docs, tests, commits,
    PRs, or public issue text unless the user explicitly asks for that exact
    operational output.

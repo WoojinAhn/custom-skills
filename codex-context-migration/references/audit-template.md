@@ -14,6 +14,7 @@ Destination: `<destination path>`
 - Source Git repo count:
 - Destination Git repo count:
 - Copied/excluded assets:
+- Global/user instruction loading mechanism:
 - Source `AGENTS.md` trust mode: `trusted` / `generated-review` / `unknown`
 
 ## Section Classification

@@ -44,6 +44,11 @@ as defects by default. Quality claims must be backed by repo facts, stale
 reference checks, and evidence that domain facts were preserved while execution
 context was updated.
 
+Best fit: users migrating from Claude-era context who have workspace-root
+policy plus child repositories, private local context, MCP setup, or generated
+instruction files to verify. For a single small repo, use the lightweight
+inventory, rewrite, and validation parts only.
+
 ## Authoring conventions
 
 - Frontmatter: `name`, `description`; Claude skills may also use `argument-hint`, `allowed-tools` as needed
