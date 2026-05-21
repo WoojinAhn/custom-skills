@@ -54,6 +54,39 @@ Typical flow:
 5. After confirmation, the agent writes `AGENTS.md`, audit records, and validates
    instruction loading with `codex exec`.
 
+Default trigger workflow:
+
+```mermaid
+flowchart TD
+    A[User triggers codex-context-migration] --> B{Did the user provide source root?}
+    B -- No --> B1[Agent asks for source root]
+    B -- Yes --> C[Agent records source root]
+    B1 --> C
+
+    C --> D{Did the user provide destination root?}
+    D -- Yes --> E[Draft guided-auto plan as migrate-full-workspace + codex-native]
+    D -- No --> F[Draft guided-auto plan as setup-in-place + dual-run-current-workspace]
+
+    E --> G[Run read-only inventory with guided-auto plan]
+    F --> G
+
+    G --> H[Summarize detected repos, context files, runtime config, MCP, plugins, and skills]
+    H --> I[Propose include / exclude / defer for child repos]
+    I --> J[Show risky confirmations only]
+
+    J --> K{User confirms?}
+    K -- No --> K1[Revise plan or stop without editing]
+    K -- Yes --> L[Apply approved migration changes]
+
+    L --> M[Write AGENTS.md files, references, and audit record]
+    M --> N[Validate instruction loading and report evidence]
+```
+
+In this default path, `guided-auto` is a planning aid, not silent approval.
+The agent should still ask before migrating private/local memory, hooks,
+permissions, MCP write or production access, third-party bridges, or retained
+Claude plugins.
+
 ## Skills
 
 | Skill | One-liner |
