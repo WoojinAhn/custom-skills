@@ -11,7 +11,10 @@ such as `CLAUDE.md`, `.claude/`, `.mcp.json`, and Claude memory into Codex
 state.
 
 This is a guidance-based skill. Prefer judgment and audit records over a single
-automatic rewrite.
+automatic rewrite. When the user wants a low-friction path, use
+`guided-auto`: draft a conservative plan from inventory signals, then ask only
+for choices that materially affect files, privacy, runtime permissions, hooks,
+MCP write/production access, third-party bridges, or Claude plugin retention.
 
 ## Good Fit
 
@@ -50,15 +53,22 @@ decision:
 
 Ask for, infer, or explicitly record these choices before starting.
 
-Do not infer the choices that can materially change files. Ask the user
-explicitly before copying or rewriting when any of these are not already stated:
-operation mode, target posture, parent policy mode, child repo migration
-selection, and whether child repos should be native, bridge, or dual-run. The
-target posture must always be confirmed in the user's words because
-`codex-native` and `dual-run-current-workspace` require opposite handling of
-`CLAUDE.md`.
+If the user asks for `guided-auto`, first generate and show a conservative
+migration plan, then ask only for the risky confirmations listed in that plan.
+Otherwise, ask explicitly before copying or rewriting when these choices are
+not already stated: operation mode, target posture, parent policy mode, child
+repo migration selection, and whether child repos should be native, bridge, or
+dual-run. The target posture must always be confirmed in the user's words
+because `codex-native` and `dual-run-current-workspace` require opposite
+handling of `CLAUDE.md`.
 
 - Operation mode:
+  - `guided-auto`: planning mode for users who do not want to choose every
+    migration label up front. Run inventory, infer safe defaults, write those
+    defaults into the audit, and ask only about risky or materially changing
+    decisions before editing. With a destination path, default to
+    `migrate-full-workspace` + `codex-native`; without a destination path,
+    default to `setup-in-place` + `dual-run-current-workspace`.
   - `setup-in-place`: keep the existing workspace/repo hierarchy and add or
     update Codex `AGENTS.md`, parent-policy references, audits, and optional
     Codex config checks in place. This is the default when the user wants to
@@ -118,6 +128,7 @@ repositories:
 python3 <skill-dir>/scripts/inventory.py \
   --source <source-root> \
   --destination <destination-root> \
+  --guided-auto-plan \
   --include-artifacts \
   --format markdown
 ```
@@ -132,6 +143,15 @@ automatic migration decisions.
 Use `--artifact-scope all` only when marketplace staging/data must also be
 audited; the default `active` scope keeps the artifact table focused on
 installed/cache/user roots.
+
+In `guided-auto`, treat the generated plan as a draft:
+
+- Accept safe defaults only after showing them to the user.
+- Never silently migrate `CLAUDE.local.md`, personal memory, hooks,
+  permissions, MCP write/production access, or third-party bridges.
+- Prefer Codex-native plugin candidates when available, but ask before
+  retaining Claude official plugins or bridges.
+- Use `selected` child repo handling by default for multi-repo workspaces.
 
 ```bash
 git status --short --branch

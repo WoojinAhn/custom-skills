@@ -10,8 +10,18 @@ Destination: `<destination path>`
 - Working tree:
 - Source root:
 - Destination root:
-- Operation mode: `setup-in-place` / `migrate-full-workspace` / `context-only`
+- Operation mode: `guided-auto` / `setup-in-place` / `migrate-full-workspace` / `context-only`
 - Copy mode detail: none / `context-only` / `full-workspace`
+- Guided-auto defaults accepted: yes/no/n/a
+- Guided-auto plan command:
+- Guided-auto inferred defaults:
+  - Operation mode default:
+  - Target posture default:
+  - Parent policy mode default:
+  - Child repo selection default:
+- Guided-auto confirmations requested:
+- Guided-auto confirmations resolved:
+- Guided-auto blocked auto-actions:
 - Inventory command:
 - Import scan command:
 - Import recursion depth checked:

@@ -33,6 +33,7 @@ Quick inventory:
 python3 codex-context-migration/scripts/inventory.py \
   --source ~/old-workspace \
   --destination ~/new-codex-workspace \
+  --guided-auto-plan \
   --format markdown
 ```
 
@@ -40,13 +41,17 @@ python3 codex-context-migration/scripts/inventory.py \
 
 1. agent에게 `codex-context-migration`을 사용하라고 요청하고 workspace root를
    알려줍니다.
-2. agent가 먼저 어떤 작업을 원하는지 묻습니다.
+2. 세부 migration label을 처음부터 전부 고르고 싶지 않다면 `guided-auto`를
+   요청합니다. agent가 inventory 기반으로 보수적인 기본 계획을 만들고, 위험한
+   선택지만 확인합니다.
+3. `guided-auto`가 초안을 이미 만든 경우가 아니라면, agent가 먼저 어떤 작업을
+   원하는지 묻습니다.
    - 현재 workspace에 Codex를 세팅 (`setup-in-place`)
    - 전체 workspace를 새 Codex 목적지로 복사 (`migrate-full-workspace`)
    - 고급 옵션: context/knowledge/config 파일만 복사 (`context-only`)
-3. agent가 inventory helper를 실행하고, 하위 repo별 include/exclude/defer
+4. agent가 inventory helper를 실행하고, 하위 repo별 include/exclude/defer
    제안을 만든 뒤 파일 수정 전에 확인을 받습니다.
-4. 확인 후 `AGENTS.md`, audit record를 작성하고 `codex exec`로 instruction
+5. 확인 후 `AGENTS.md`, audit record를 작성하고 `codex exec`로 instruction
    loading을 검증합니다.
 
 ## Skills
@@ -62,13 +67,16 @@ python3 codex-context-migration/scripts/inventory.py \
 `CLAUDE.md`, `.claude/`, memory, `.mcp.json` 같은 Claude-era context를
 Codex-native `AGENTS.md` 레이어로 옮길 때 사용합니다.
 
-스킬은 먼저 operation mode를 고릅니다. 현재 workspace에 Codex를 세팅할지,
-전체 workspace를 새 목적지로 이관할지, 또는 고급 옵션으로 context-only 복사를
-할지 정합니다. 기존 `AGENTS.md`의 신뢰 수준, 독립 하위 Git repo가
-workspace/root 정책을 상속해야 하는지, 각 하위 repo를 include, exclude,
-copy-only, defer 중 어떻게 처리할지도 먼저 확정합니다. 그다음 source material을
-분류하고, 각 영역을 native instruction, bridge, private local context, omit 중
-어디에 둘지 결정한 뒤 `codex exec`로 결과를 검증합니다.
+스킬은 `guided-auto`로 더 낮은 마찰의 흐름을 시작할 수 있습니다. 이 모드에서는
+inventory 신호로 보수적인 migration plan을 먼저 만들고, 위험하거나 실제 파일
+변경 의미가 큰 선택지만 사용자에게 확인합니다. 수동 흐름에서는 먼저 operation
+mode를 고릅니다. 현재 workspace에 Codex를 세팅할지, 전체 workspace를 새
+목적지로 이관할지, 또는 고급 옵션으로 context-only 복사를 할지 정합니다. 기존
+`AGENTS.md`의 신뢰 수준, 독립 하위 Git repo가 workspace/root 정책을 상속해야
+하는지, 각 하위 repo를 include, exclude, copy-only, defer 중 어떻게 처리할지도
+먼저 확정합니다. 그다음 source material을 분류하고, 각 영역을 native
+instruction, bridge, private local context, omit 중 어디에 둘지 결정한 뒤
+`codex exec`로 결과를 검증합니다.
 `claude-config` 같은 Claude-native config/tooling repo는 전체 workspace
 이관이라고 자동 포함하지 않고, 명시적인 defer/exclude 후보로 먼저 올립니다.
 Claude official plugin도 Codex 기본값으로 보지 않습니다. 먼저 Codex

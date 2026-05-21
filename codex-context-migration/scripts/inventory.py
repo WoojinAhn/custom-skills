@@ -164,6 +164,11 @@ def parse_args() -> argparse.Namespace:
         help="Also inventory Codex/Claude plugin, skill, command, hook, agent, and marketplace artifacts.",
     )
     parser.add_argument(
+        "--guided-auto-plan",
+        action="store_true",
+        help="Emit a conservative guided-auto migration plan draft from inventory signals.",
+    )
+    parser.add_argument(
         "--artifact-scope",
         choices=("active", "all"),
         default="active",
@@ -693,6 +698,77 @@ def plugin_decision_flags(
     return sorted(flags)
 
 
+def guided_auto_plan(
+    source: Path,
+    destination: Path | None,
+    rows: list[dict[str, object]],
+) -> dict[str, object]:
+    root_row = next((row for row in rows if row.get("path") == "."), None)
+    child_rows = [row for row in rows if row.get("path") != "."]
+    operation_mode = "migrate-full-workspace" if destination else "setup-in-place"
+    target_posture = "codex-native" if destination else "dual-run-current-workspace"
+
+    root_has_policy = bool(
+        root_row
+        and (
+            root_row.get("has_AGENTS")
+            or root_row.get("has_CLAUDE")
+            or root_row.get("has_claude_project_md")
+        )
+    )
+    confirmations: set[str] = {
+        "confirm-target-posture",
+        "confirm-child-repo-plan",
+    }
+    blocked_auto_actions = {
+        "private-or-local-memory",
+        "runtime-permissions",
+        "hooks",
+        "mcp-write-or-production-access",
+        "third-party-bridges",
+        "claude-plugin-retention",
+    }
+    recommended_child_actions: dict[str, int] = {}
+
+    for row in rows:
+        action = str(row.get("suggested_action") or "review-needed")
+        recommended_child_actions[action] = recommended_child_actions.get(action, 0) + 1
+        signals = set(row.get("signals") or [])
+        if {"claude-local-md", "claude-home-imports", "claude-external-imports"} & signals:
+            confirmations.add("confirm-private-context-disposition")
+        if {
+            "claude-permissions",
+            "claude-hooks",
+            "claude-sessionstart",
+            "claude-settings-mcp",
+            "mcp-config",
+        } & signals:
+            confirmations.add("confirm-runtime-config-disposition")
+        if row.get("plugin_decisions_required"):
+            confirmations.add("confirm-plugin-ecosystem-decisions")
+        if "destination-present" in signals:
+            confirmations.add("confirm-destination-overwrite-or-merge")
+
+    return {
+        "mode": "guided-auto",
+        "source": str(source),
+        "destination": str(destination) if destination else "",
+        "operation_mode_default": operation_mode,
+        "target_posture_default": target_posture,
+        "agents_trust_mode_default": "unknown" if root_row and root_row.get("has_AGENTS") else "not-present",
+        "parent_policy_mode_default": "inherit-parent" if root_has_policy and child_rows else "isolated",
+        "child_repo_selection_default": "selected" if child_rows else "all",
+        "child_repo_count": len(child_rows),
+        "recommended_action_counts": recommended_child_actions,
+        "user_confirmations_required": sorted(confirmations),
+        "blocked_auto_actions": sorted(blocked_auto_actions),
+        "notes": [
+            "Defaults are plan suggestions, not approval to edit files.",
+            "Risky runtime, private, MCP write/prod, third-party bridge, and Claude plugin retention decisions require user confirmation.",
+        ],
+    }
+
+
 def name_tokens(path_text: str) -> set[str]:
     return {token for token in re.split(r"[^a-z0-9]+", path_text.lower()) if token}
 
@@ -957,6 +1033,34 @@ def print_artifact_markdown(rows: list[dict[str, object]]) -> None:
         print("| " + " | ".join(values) + " |")
 
 
+def print_guided_auto_plan(plan: dict[str, object]) -> None:
+    if not plan:
+        return
+    print()
+    print("## Guided Auto Plan")
+    print()
+    fields = [
+        "mode",
+        "operation_mode_default",
+        "target_posture_default",
+        "agents_trust_mode_default",
+        "parent_policy_mode_default",
+        "child_repo_selection_default",
+        "child_repo_count",
+        "recommended_action_counts",
+        "user_confirmations_required",
+        "blocked_auto_actions",
+        "notes",
+    ]
+    for field in fields:
+        value = plan.get(field, "")
+        if isinstance(value, list):
+            value = ", ".join(value)
+        elif isinstance(value, dict):
+            value = ", ".join(f"{key}:{count}" for key, count in sorted(value.items()))
+        print(f"- {field}: {markdown_escape(value)}")
+
+
 def summarize_plugin_candidates(candidates: object) -> str:
     if not isinstance(candidates, list):
         return ""
@@ -989,11 +1093,13 @@ def main() -> None:
         if args.include_artifacts
         else []
     )
+    plan = guided_auto_plan(source, destination, rows) if args.guided_auto_plan else {}
     if args.format == "json":
-        if args.include_artifacts:
+        if args.include_artifacts or args.guided_auto_plan:
             print(
                 json.dumps(
                     {
+                        "guided_auto_plan": plan,
                         "repos": rows,
                         "artifacts": artifacts,
                     },
@@ -1004,6 +1110,7 @@ def main() -> None:
         else:
             print(json.dumps(rows, indent=2, ensure_ascii=False))
     else:
+        print_guided_auto_plan(plan)
         print_markdown(rows)
         print_artifact_markdown(artifacts)
 

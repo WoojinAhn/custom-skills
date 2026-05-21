@@ -32,6 +32,7 @@ Quick inventory:
 python3 codex-context-migration/scripts/inventory.py \
   --source ~/old-workspace \
   --destination ~/new-codex-workspace \
+  --guided-auto-plan \
   --format markdown
 ```
 
@@ -39,14 +40,18 @@ Typical flow:
 
 1. Ask your agent to use `codex-context-migration` and provide the workspace
    root.
-2. The agent asks what operation you want:
+2. If you do not want to choose every migration label up front, ask for
+   `guided-auto`. The agent drafts conservative defaults from inventory and
+   asks only about risky choices.
+3. The agent asks what operation you want, unless `guided-auto` already inferred
+   a draft plan:
    - set up Codex in the current workspace (`setup-in-place`)
    - copy the whole workspace to a new Codex destination
      (`migrate-full-workspace`)
    - advanced: copy only context/knowledge/config files (`context-only`)
-3. The agent runs the inventory helper, proposes include/exclude/defer choices
+4. The agent runs the inventory helper, proposes include/exclude/defer choices
    for child repos, then waits for confirmation before editing files.
-4. After confirmation, the agent writes `AGENTS.md`, audit records, and validates
+5. After confirmation, the agent writes `AGENTS.md`, audit records, and validates
    instruction loading with `codex exec`.
 
 ## Skills
@@ -63,14 +68,17 @@ Use when moving a workspace or repository from Claude-era context files such as
 `CLAUDE.md`, `.claude/`, memory, and `.mcp.json` into Codex-native
 `AGENTS.md` layers.
 
-The skill starts by choosing an operation mode: set up Codex in the current
-workspace, migrate the full workspace to a new destination, or use the advanced
-context-only path. It records the trust level of existing `AGENTS.md` files,
-whether independent child Git repositories should inherit workspace/root policy,
-and whether each child repo should be included, excluded, copied without
-instruction rewrite, or deferred. It then classifies source material, decides
-whether each area should become native instructions, a bridge, private local
-context, or an omission, and validates the result with `codex exec`.
+The skill can start with `guided-auto` for a lower-friction path: it drafts a
+conservative migration plan from inventory signals, then asks only about risky
+or materially changing choices. In manual mode it starts by choosing an
+operation mode: set up Codex in the current workspace, migrate the full
+workspace to a new destination, or use the advanced context-only path. It
+records the trust level of existing `AGENTS.md` files, whether independent
+child Git repositories should inherit workspace/root policy, and whether each
+child repo should be included, excluded, copied without instruction rewrite, or
+deferred. It then classifies source material, decides whether each area should
+become native instructions, a bridge, private local context, or an omission,
+and validates the result with `codex exec`.
 Claude-native config/tooling repos such as `claude-config` are treated as
 explicit defer/exclude candidates rather than silently included by a full
 workspace migration.
