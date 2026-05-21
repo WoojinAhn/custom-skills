@@ -74,6 +74,9 @@ context, or an omission, and validates the result with `codex exec`.
 Claude-native config/tooling repos such as `claude-config` are treated as
 explicit defer/exclude candidates rather than silently included by a full
 workspace migration.
+Claude official plugins are also not treated as Codex defaults: the workflow
+checks Codex official/curated/bundled alternatives first, and retains
+Claude-side plugins only after an explicit compatibility decision.
 
 For larger workspaces, the bundled `scripts/inventory.py` helper can generate a
 read-only child repo/context table from user-provided source and destination

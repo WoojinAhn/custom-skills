@@ -71,6 +71,9 @@ copy-only, defer 중 어떻게 처리할지도 먼저 확정합니다. 그다음
 어디에 둘지 결정한 뒤 `codex exec`로 결과를 검증합니다.
 `claude-config` 같은 Claude-native config/tooling repo는 전체 workspace
 이관이라고 자동 포함하지 않고, 명시적인 defer/exclude 후보로 먼저 올립니다.
+Claude official plugin도 Codex 기본값으로 보지 않습니다. 먼저 Codex
+official/curated/bundled 대안을 검토하고, Claude 쪽 plugin은 호환성 판단을
+명시적으로 거친 뒤에만 유지합니다.
 
 큰 workspace에서는 포함된 `scripts/inventory.py` helper로 사용자가 지정한
 출발지/목적지 경로 기준의 read-only 하위 repo/context 표를 만들 수 있습니다.

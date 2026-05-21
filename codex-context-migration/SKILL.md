@@ -716,6 +716,27 @@ When the source context is a skill, do not import it as plain `AGENTS.md`
 context. Audit it as a reusable capability with its own trigger semantics,
 resources, and runtime assumptions.
 
+The larger goal is ecosystem migration, not just preserving the Claude side in
+Codex. Claude official plugins, skills, and commands are useful source
+material, but they are legacy/compatibility candidates by default. Do not make
+`claude-plugins-official` the default Codex plugin baseline. First check whether
+the Codex environment has an official, curated, bundled, primary-runtime, or
+OpenAI Codex plugin that serves the same purpose.
+
+Prefer these Codex-side sources when available:
+
+- `openai-curated` marketplace entries, often displayed as Codex official.
+- `openai-bundled` plugins such as browser or other bundled runtime tools when
+  present in the target installation.
+- `openai-primary-runtime` plugins such as documents, spreadsheets, and
+  presentations.
+- `openai-codex` plugin capabilities for Codex-specific helper workflows.
+
+Keep a Claude-side plugin or skill only when the user explicitly wants it after
+seeing the trade-off, or when it is the clearest compatibility bridge for a
+specific workflow. Record that as a retained Claude plugin, Codex-native
+replacement, third-party exception, or deferred decision in the audit.
+
 Check:
 
 - `SKILL.md` frontmatter: `name`, `description`, trigger wording, and scope
@@ -742,6 +763,37 @@ Validate:
 - References are linked from `SKILL.md`
 - No README/CHANGELOG-style clutter unless required by runtime behavior
 - Scripts can run in the target environment or are clearly marked as references
+
+### Plugin Ecosystem Migration
+
+Classify plugin-level migration separately from instruction text:
+
+- `codex-native-replacement`: A Codex official/curated/bundled plugin covers
+  the same job. Prefer this path.
+- `claude-plugin-retained`: A Claude official plugin remains useful enough to
+  keep, but only after explicit user confirmation and with compatibility notes.
+- `third-party-exception`: A non-official plugin or bridge has a clear purpose
+  that Codex-native plugins do not cover.
+- `deferred`: No safe equivalent is known yet, or auth/write/runtime behavior
+  needs separate research.
+
+Example mapping checks:
+
+- `frontend-design@claude-plugins-official` -> first check
+  `build-web-apps@openai-curated`.
+- `superpowers@claude-plugins-official` -> first check
+  `superpowers@openai-curated`.
+- `playwright@claude-plugins-official` -> first check Codex MCP Playwright
+  setup plus `browser@openai-bundled`.
+- `mcp-server-dev@claude-plugins-official` -> no guaranteed one-to-one Codex
+  first-party equivalent; investigate Codex/OpenAI developer plugins such as
+  `openai-developers` or `plugin-eval` before retaining the Claude plugin.
+- Reverse bridges such as `cc@sendbird` may be valid third-party exceptions
+  when their purpose is explicit and the user confirms the bridge behavior.
+
+Do not infer plugin equivalence from names alone. Compare purpose, available
+tools, auth model, write permissions, local runtime requirements, and whether
+the plugin is available in the target Codex installation.
 
 ### Claude-Native Compatibility
 

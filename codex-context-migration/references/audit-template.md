@@ -56,6 +56,16 @@ Destination: `<destination path>`
 | `.mcp.json` | MCP server config | credentials/write scope | Codex MCP config / defer |  |  |
 | `SessionStart` | startup context injection | dynamic/private context | `AGENTS.md` / private / defer |  |  |
 
+## Plugin Ecosystem Classification
+
+| Source plugin/skill | Source ecosystem | Purpose | Codex-native candidate | Decision | Evidence |
+| --- | --- | --- | --- | --- | --- |
+| `frontend-design` | `claude-plugins-official` | frontend UI generation | `build-web-apps@openai-curated` | Codex-native replacement / retained / deferred |  |
+| `superpowers` | `claude-plugins-official` | workflow skills | `superpowers@openai-curated` | Codex-native replacement / retained / deferred |  |
+| `playwright` | `claude-plugins-official` | browser automation | MCP Playwright + `browser@openai-bundled` | Codex-native replacement / retained / deferred |  |
+| `mcp-server-dev` | `claude-plugins-official` | MCP/server development | `openai-developers` / `plugin-eval` research candidate | retained / third-party exception / deferred |  |
+| `cc` | third-party bridge | reverse bridge / compatibility | none known | third-party exception / deferred |  |
+
 ## Child Repo Selection
 
 | Child repo | Existing context | Action | Reason |
