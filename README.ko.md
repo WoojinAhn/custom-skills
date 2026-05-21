@@ -54,6 +54,39 @@ python3 codex-context-migration/scripts/inventory.py \
 5. 확인 후 `AGENTS.md`, audit record를 작성하고 `codex exec`로 instruction
    loading을 검증합니다.
 
+기본 트리거 워크플로우:
+
+```mermaid
+flowchart TD
+    A[사용자가 codex-context-migration 트리거] --> B{출발지 root를 제공했는가?}
+    B -- 아니오 --> B1[Agent가 출발지 root를 질문]
+    B -- 예 --> C[Agent가 출발지 root 기록]
+    B1 --> C
+
+    C --> D{목적지 root를 제공했는가?}
+    D -- 예 --> E[guided-auto 초안: migrate-full-workspace + codex-native]
+    D -- 아니오 --> F[guided-auto 초안: setup-in-place + dual-run-current-workspace]
+
+    E --> G[guided-auto plan과 read-only inventory 실행]
+    F --> G
+
+    G --> H[감지된 repo, context file, runtime config, MCP, plugin, skill 요약]
+    H --> I[하위 repo별 include / exclude / defer 제안]
+    I --> J[위험한 확인 항목만 표시]
+
+    J --> K{사용자가 확인했는가?}
+    K -- 아니오 --> K1[계획 수정 또는 파일 수정 없이 중단]
+    K -- 예 --> L[승인된 migration 변경 적용]
+
+    L --> M[AGENTS.md, references, audit record 작성]
+    M --> N[instruction loading 검증 및 근거 보고]
+```
+
+이 기본 흐름에서 `guided-auto`는 자동 승인 모드가 아니라 planning aid입니다.
+private/local memory, hooks, permissions, MCP write 또는 production access,
+third-party bridge, Claude plugin 유지 여부는 agent가 여전히 사용자에게 확인해야
+합니다.
+
 ## Skills
 
 | 스킬 | 한 줄 설명 |
