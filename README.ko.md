@@ -2,7 +2,7 @@
 
 # custom-skills
 
-실제 세션에서 추출한 개인용 Claude Code / Codex 스킬 모음.
+실제 세션에서 추출한 Claude Code와 Codex용 개인 AI agent 스킬 모음.
 
 각 스킬은 자체 디렉토리에 `SKILL.md` (frontmatter + 본문)로 존재합니다.
 Claude Code에서 사용하려면 `~/.claude/skills/`에 symlink 걸기:

@@ -2,7 +2,7 @@
 
 # custom-skills
 
-Personal Claude Code / Codex skills, distilled from real sessions.
+Personal AI agent skills for Claude Code and Codex, distilled from real sessions.
 
 Each skill lives in its own directory with a `SKILL.md` (frontmatter + body).
 To use a Claude Code skill, symlink it into `~/.claude/skills/`:
