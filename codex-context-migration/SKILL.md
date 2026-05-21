@@ -203,346 +203,43 @@ When the terminal supports interactive checkbox selection, use it for the child
 repo include/exclude pass. Otherwise present a plain-text checklist and wait for
 confirmation before touching child repos.
 
-3. Classify each section or memory file.
+3. Classify source material and child repo coverage.
 
-Use these buckets:
+Use `references/migration-workflow-details.md` when the migration has child
+repos, private memory, runtime config, generated instructions, or unclear
+source quality. Record classifications in the audit instead of silently
+dropping or rewriting material.
 
-- `project-fact`: stack, architecture, commands, tests, repo layout
-- `cross-agent-rule`: security, branch policy, generated files, API contracts
-- `workflow-procedure`: release, review, handoff, incident, schedule procedure
-- `tool-specific`: Claude hooks, slash commands, MCP startup, session behavior
-- `private-sensitive`: real people, employee IDs, credentials, internal routing
-- `stale-or-generic`: outdated paths, deleted commands, broad platitudes
+4. Build the layer model and copy/setup files conservatively.
 
-Classify Claude runtime configuration separately from instructions:
+Keep always-loaded Codex instructions compact. If child directories are
+independent Git repos, do not assume the parent workspace `AGENTS.md` is active
+inside them; add explicit parent-policy references only when the user chose
+`inherit-parent`. For copy/setup mode details, use
+`references/migration-workflow-details.md`.
 
-- `.claude/settings.json` and `.claude/settings.local.json`: permissions,
-  hooks, model/tool defaults, and local overrides. Map to Codex `config.toml`,
-  Codex hooks/MCP setup, private local config, or defer; do not dump the raw
-  JSON into `AGENTS.md`.
-- Permission allow/deny patterns: split the durable policy intent from Claude
-  tool matcher syntax. Safety intent can become concise `AGENTS.md` guidance;
-  matcher syntax belongs in Codex config or a deferred runtime migration.
-- `.claude/hooks/` or hook entries in settings: executable runtime behavior.
-  Keep only durable intent in `AGENTS.md`; migrate executable behavior to the
-  Codex runtime only when the target environment supports it and the user
-  confirms it.
-- `.claude/commands/`: slash-command workflows. Convert to a Codex skill or
-  referenced procedure only when the workflow is still useful outside Claude.
-- `.claude/skills/`: Claude skill packages. Treat as skill-migration
-  candidates, not repo instruction text.
-- `.mcp.json`: MCP server config. Compare with the Codex MCP config shape,
-  required env, command, args, and enabled tools before migrating.
-- SessionStart or auto-memory behavior: classify the durable learning, not the
-  Claude-specific loading mechanism.
-
-Also classify each source `AGENTS.md`:
-
-- `authoritative-source`: user-authored, current, and consistent with repo facts
-- `generated-usable`: generated, but verified against `CLAUDE.md` and code
-- `generated-review`: generated or converted, and not yet verified against
-  durable sources and repo facts
-- `stale`: contradicts code, commands, paths, or active workspace layout
-
-Generation alone is not a quality signal. Judge generated or converted files
-by whether they preserve domain facts, update execution context correctly, and
-cover the intended workspace scope.
-
-4. Decide child repo coverage, then native, bridge, dual-run, private, or omit.
-
-For each child repo, choose one action:
-
-- `include-native`: migrate or create a native repo `AGENTS.md`.
-- `include-bridge`: create a bridge `AGENTS.md` because native flattening is
-  unsafe in the current pass.
-- `include-dual-run`: keep the repo's Claude-native files active and add a
-  Codex `AGENTS.md` that points to the applicable parent policy plus the local
-  Claude source. Use this when the target posture is
-  `dual-run-current-workspace` or when the repo is intentionally still operated
-  by Claude Code.
-- `include-copy-only`: copy the repo when `migrate-full-workspace` is
-  requested, but do not rewrite instructions yet.
-- `exclude`: do not copy or rewrite this child repo during this migration.
-- `defer`: leave the repo untouched for a later pass.
-
-Good exclusion or defer candidates include:
-
-- Archived, stale, or unrelated repos under the same workspace root.
-- Vendored, generated, sample, or throwaway projects.
-- Repos containing private local experiments or sensitive operational context.
-- Claude-native configuration or tooling repos, such as `claude-config`, mobile
-  Claude setup repos, Claude slash-command collections, Claude settings sync
-  repos, and Claude skill/plugin development repos.
-- Repos whose useful context is mostly Claude hooks, slash commands, session
-  mechanics, or other tool-specific behavior that cannot be rewritten safely.
-- Repos with no durable project facts to migrate in the current pass.
-
-Do not exclude a repo just because it contains Claude-era files. Exclude or
-defer it only when there is a concrete reason, and record that reason.
-Conversely, do not silently include a Claude-native config/tooling repo just
-because a full workspace migration was requested or because it has a useful
-`CLAUDE.md`. Present it as `defer` or `exclude` unless the user explicitly opts
-in to copying or bridging that repo.
-
-For material inside an included repo, choose one destination:
-
-- `native`: write concise Codex-oriented `AGENTS.md`.
-- `bridge`: create a short `AGENTS.md` that points to parent layers and the
-  local source file when the source is too large to flatten safely.
-- `dual-run-bridge`: create a short `AGENTS.md` for Codex while preserving
-  `CLAUDE.md` as the active Claude instruction source. This is not a failed
-  native migration; it is the correct shape when the user wants both agents to
-  share the same current workspace.
-- `private`: copy to a local private path such as
-  `~/.codex/private/<domain>/...` and reference it from global instructions
-  only when needed.
-- `omit`: leave out and document why.
-
-Prefer `native` for child repositories when the target posture is
-`codex-native` and the durable source is concise enough to flatten. Use a
-bridge only when native conversion would be unsafe in the current pass. Use
-`dual-run-bridge` when preserving the Claude workspace is part of the goal.
-
-5. Build the layer model.
-
-- First identify how the target Codex environment loads global or user-level
-  instructions. Use `~/.codex/AGENTS.md` only when that path is valid for the
-  user's setup; otherwise record the actual mechanism in the audit.
-- Check for `AGENTS.override.md` in global, workspace, and repo scopes. It can
-  change instruction precedence and should not be overwritten or ignored.
-- Check the user's Codex `config.toml` when available for instruction-loading
-  settings such as `project_doc_fallback_filenames`, `project_doc_max_bytes`,
-  and `child_agents_md`. Record the observed values or that they were not
-  available.
-- Keep generated `AGENTS.md` and `AGENTS.override.md` compact. If either file
-  is near or above the configured project-doc byte limit, split detailed
-  procedures into references and keep only routing instructions in the loaded
-  file.
-- Workspace policy can live at `<workspace>/AGENTS.md`.
-- If children are separate Git repositories, do not assume parent discovery:
-  Codex loads project instructions from the current Git/project root up to the
-  current working directory, so a parent workspace `AGENTS.md` outside the child
-  repo root is not automatically active.
-- If parent policy mode is `inherit-parent`, add an explicit parent-policy
-  reference to each child repo `AGENTS.md`. This may be a native repo file with
-  a parent-policy paragraph, or a bridge file when repo-specific context is not
-  ready to flatten.
-- If parent policy mode is `isolated`, record that choice in the audit and do
-  not add parent references to child repos.
-- Repo `AGENTS.md` should contain only repo-specific commands, architecture,
-  gotchas, and exceptions.
-
-6. Set up or copy files conservatively.
-
-For `setup-in-place`, do not copy repositories. Work in the existing source
-root:
-
-- Inventory the current workspace and child repos.
-- Add or update root/workspace `AGENTS.md` in place.
-- Add or update child repo `AGENTS.md` files only for the confirmed child repo
-  selection.
-- Preserve `CLAUDE.md` and Claude runtime files unless the user explicitly
-  asks for a Codex-native cleanup. In-place setup often means Claude and Codex
-  will coexist.
-- Record all modified files in the audit because this mode changes the active
-  workspace directly.
-
-For `context-only`, copy only instruction/memory/knowledge/MCP material and
-document that code repositories were intentionally not copied. Treat this as an
-advanced/special-case mode, not the default public path.
-
-For `migrate-full-workspace`, copy code and ordinary project files too, while
-still excluding generated local state.
-
-- Apply the confirmed child repo selection before copying. `exclude` and
-  `defer` child repos are not copied or rewritten. `include-copy-only` repos
-  are copied but their instruction files are not rewritten in this pass.
-- Preserve tracked files, even if they are named `.env`.
-- Exclude untracked local secrets and generated state: `.venv/`, `node_modules/`,
-  caches, build output, `.pytest_cache/`, `.playwright-mcp/`, and raw session
-  logs.
-- Before excluding `.env`, check whether it is tracked:
-
-```bash
-git ls-files --error-unmatch .env >/dev/null 2>&1 && echo tracked || echo untracked
-```
-
-After a `migrate-full-workspace` copy, verify that source and destination repo
-counts match and that tracked status differences are explained by pre-existing
-source state or intentional migration files. For `setup-in-place`, verify the
-workspace's Git statuses before and after so user changes are distinguishable
-from migration edits.
-
-7. Rewrite `AGENTS.md` natively.
-
-When source `AGENTS.md` is `generated-review`, compare it with `CLAUDE.md`,
-durable docs, and repo facts before deciding whether to reuse, revise, or
-ignore it as source material.
+5. Rewrite `AGENTS.md` natively.
 
 Treat `CLAUDE.md` as a high-signal intent source, not just text to rename.
-Well-maintained Claude memory often contains the best available hints about
-the repository's purpose, operating style, constraints, and risks. A native
-Codex rewrite should first infer the intended working model from `CLAUDE.md`,
-then express that model in Codex terms.
+Infer the intended working model, then express it in Codex terms. For detailed
+rewrite rules and quality checks, use
+`references/migration-workflow-details.md`. For native, bridge, and dual-run
+file templates, use `references/agents-md-shapes.md`.
 
-When reading `CLAUDE.md`, extract these signals before writing `AGENTS.md`:
+6. Handle runtime config, private context, MCP, plugins, and skills.
 
-- Project purpose and user/domain context.
-- Stack, commands, test/build/deploy workflow, and repo layout.
-- Boundaries, invariants, generated files, data safety, auth, and deployment
-  cautions.
-- Collaboration workflow such as issue-first, branch, commit, PR, and review
-  habits.
-- Tool mechanics that were right for Claude but need Codex equivalents,
-  removal, or an explicit defer note.
+Do not dump Claude runtime mechanics into `AGENTS.md`. Use
+`references/runtime-and-skill-artifacts.md` and
+`references/ecosystem-matrix.md` when source context includes private memory,
+hooks, slash commands, `.mcp.json`, Claude plugins, Codex plugins, or skill
+packages.
 
-Do not flatten `CLAUDE.md` mechanically. Reorganize it into a concise native
-shape: overview, commands, architecture, critical rules, workflow, and
-references. Preserve nuance from the source, but drop Claude boilerplate and
-stale session mechanics.
-
-Code or README inspection is a confidence check, not a prerequisite for every
-repo. Use it when `CLAUDE.md` is missing, vague, stale-looking, internally
-contradictory, or when commands/paths are risky enough that a wrong instruction
-would cause bad work.
-
-Use this transformation rubric for `CLAUDE.md` sections:
-
-| Source signal in `CLAUDE.md` | Native `AGENTS.md` destination | Rewrite rule |
-| --- | --- | --- |
-| Project overview, target users, domain context | `## Overview` | Keep the intent and domain language; remove Claude boilerplate. |
-| Install, run, build, test, deploy commands | `## Commands` | Preserve real commands exactly; update only stale workspace paths. |
-| Directory map, modules, layers, package boundaries | `## Architecture` | Compress to the smallest map needed before editing code. |
-| Invariants, generated files, data/auth/deploy cautions | `## Critical Rules` | Keep as loaded rules; do not bury safety constraints in long prose. |
-| Issue, branch, commit, PR, review habits | `## Workflow` | Convert agent names and branch prefixes only when they describe agent behavior. |
-| Claude hooks, slash commands, MCP/session mechanics | `## Deferred Runtime Migration` or omit | Keep durable intent; defer runtime syntax unless Codex support is confirmed. |
-| Private people, credentials, routing, local secrets | Private reference or omit | Never copy sensitive material into repo instructions. |
-| Long background docs or procedures | `## References` | Link or reference instead of inlining when always-loaded size would grow. |
-
-Examples:
-
-Bad mechanical conversion:
-
-```markdown
-# AGENTS.md
-
-This file provides guidance to Claude Code when working with this repository.
-
-Before changing this repo, read `CLAUDE.md`; it contains the detailed rules.
-```
-
-Why it is bad: Codex still gets Claude boilerplate, no native authority, and no
-immediate repo rules.
-
-Better native rewrite:
-
-```markdown
-# Spring Commerce
-
-Follow `/workspace/AGENTS.md` for workspace policy.
-
-## Instruction Authority
-
-This `AGENTS.md` is authoritative for Codex. `CLAUDE.md` is retained only as
-migration source material.
-
-## Commands
-
-- `./gradlew test`
-- `./gradlew bootRun`
-
-## Architecture
-
-Multi-module Spring Boot service. Domain modules depend only on `common`.
-
-## Critical Rules
-
-- Manage schema through Flyway migrations; do not rely on JPA schema creation.
-- Keep write APIs behind admin authorization unless a local rule says otherwise.
-```
-
-Preserve product-specific Claude facts when they are the repository subject:
-
-```markdown
-## Repository Context
-
-This repo syncs Claude Code configuration files. `CLAUDE.md`,
-`~/.claude/settings.json`, and hook scripts are real managed artifacts, not
-Codex instruction sources.
-```
-
-Do not perform broad product-name replacement. Preserve domain facts such as:
-
-- Real package names, npm scopes, binary names, and import paths.
-- Real CLI commands used by the repo, even if they include `claude`.
-- Dataset labels, examples, URLs, and directory names that are part of the
-  project's subject matter.
-
-Rewrite only execution context, and only for the target posture:
-
-- Active instruction file names: `CLAUDE.md` -> `AGENTS.md` when describing
-  Codex behavior in a `codex-native` target. In
-  `dual-run-current-workspace`, keep references to `CLAUDE.md` when they
-  describe Claude Code behavior or the preserved Claude source of truth.
-- Workspace paths: source root -> destination root.
-- Local private/reference paths: `.claude/...` -> Codex-equivalent private or
-  reference paths when appropriate. In dual-run mode, keep `.claude/...` paths
-  that are still used by Claude Code and mark Codex handling as deferred or
-  separate.
-- Tool-specific workflow text only when the target behavior is actually Codex
-  behavior.
-
-For Claude `@import` sources, avoid assuming Codex will load them the same way.
-Inline only short durable rules that must always apply. Use explicit reference
-links for long procedures, private local references for sensitive material, and
-omit stale imports with an audit note.
-
-Each native child `AGENTS.md` should state its authority relationship:
-
-```markdown
-## Instruction Authority
-
-This `AGENTS.md` is the authoritative Codex instruction file for this
-repository. Earlier instruction files were audited during migration but are
-not authoritative unless this file explicitly references them. `CLAUDE.md`,
-when present, is retained only as migration source material; if it differs
-from this file, follow `AGENTS.md`.
-```
-
-When parent policy mode is `inherit-parent`, include a parent-policy reference
-near the top of each child `AGENTS.md`:
-
-```markdown
-Follow `<absolute-or-repo-relative-parent>/AGENTS.md` for workspace policy.
-This child repository is an independent Git repo, so Codex will not load the
-parent policy automatically when sessions start here.
-```
-
-Do not add this reference blindly. The user must choose `inherit-parent`, and
-the referenced parent file must be relevant to that child repo.
-
-For `dual-run-current-workspace`, use a different authority statement:
-
-```markdown
-## Instruction Authority
-
-This `AGENTS.md` is the Codex entry point for this repository. `CLAUDE.md`
-remains the Claude Code instruction source and is intentionally preserved. When
-working through Codex, follow this file plus any explicitly referenced parent
-policy. When working through Claude Code, follow `CLAUDE.md`.
-```
-
-Do not call a dual-run result incomplete merely because `CLAUDE.md` remains in
-place. Judge it by whether Codex has a clear entry point, parent-policy
-references are explicit, and Claude-specific behavior is not accidentally
-misrepresented as Codex behavior.
-
-8. Write an audit.
+7. Write an audit.
 
 Create one audit file per repo or workspace. Use
 `references/audit-template.md` as the starting point.
 
-9. Validate instruction loading.
+8. Validate instruction loading.
 
 For Git repos:
 
@@ -560,28 +257,12 @@ codex exec -C <dir> --skip-git-repo-check -s read-only --ephemeral \
 
 Update the audit with the active instruction files reported by Codex.
 
-10. Validate migration quality.
+9. Validate migration quality.
 
-For generated or converted source `AGENTS.md`, compare quality against the native
-target using objective checks:
-
-- Count source and target child `AGENTS.md` files.
-- Compare the confirmed child repo selection against actual copied/rewritten
-  repos.
-- Compare generated or converted `AGENTS.md` files against durable sources for
-  unusually shallow changes, such as mostly renamed headings, unchanged
-  tool-specific procedures, or broad product-name substitutions.
-- Search active target `AGENTS.md` files for stale source paths and stale
-  `CLAUDE.md` authority references.
-- Search for suspicious mechanical substitutions such as changed package names,
-  CLI binaries, URLs, examples, or data labels.
-- Spot-check suspicious hits against source code before calling them errors.
-- Normalize intended transformations from `CLAUDE.md` to target `AGENTS.md`
-  and compare bodies when feasible.
-
-Quality conclusions must be evidence-based. Treat generation as provenance,
-not as a defect. Mark a file as lower quality only when it contradicts repo
-facts, preserves stale execution context, or omits required child coverage.
+Use evidence-based checks from `references/migration-workflow-details.md`.
+Treat generation as provenance, not as a defect. Mark a file lower quality only
+when it contradicts repo facts, preserves stale execution context, or omits
+required coverage.
 
 ## Done Criteria
 
@@ -623,238 +304,13 @@ A migration is not complete until these are true:
 - Quality comparison records evidence for any claim that one migration result
   is better than another.
 
-## Native AGENTS.md Shape
-
-Keep always-loaded files compact. A useful first version:
-
-```markdown
-# Project Name
-
-One paragraph with purpose and scope.
-
-Follow `/path/to/workspace/AGENTS.md` for workspace policy.
-
-## Commands
-
-Install/build/test/run commands.
-
-## Architecture
-
-The smallest useful map of layers, packages, and boundaries.
-
-## Critical Rules
-
-Branch policy, data safety, auth, generated files, deployment triggers,
-API contracts, and test tagging rules.
-
-## References
-
-- `README.md` for user-facing usage.
-- `CLAUDE.md` retained as migration source material, if applicable.
-```
-
-## Bridge AGENTS.md Shape
-
-Use a bridge when the source context is too large or domain-heavy to flatten in
-one pass:
-
-```markdown
-# repo-name
-
-Bridge Codex instruction file for this repository.
-
-Follow `/workspace/AGENTS.md` and `/workspace/domain/AGENTS.md`.
-
-Before changing this repo, read local `CLAUDE.md`; it contains detailed
-commands, architecture, and operational rules that have not yet been fully
-flattened.
-
-## Critical Rules
-
-- Small set of safety and workflow rules that must be loaded immediately.
-```
-
-## Dual-run AGENTS.md Shape
-
-Use this when the current workspace remains Claude-operated and Codex is added
-alongside it:
-
-```markdown
-# repo-name
-
-Codex entry point for this repository.
-
-Follow `/workspace/AGENTS.md` for Codex workspace policy.
-
-## Instruction Authority
-
-This `AGENTS.md` is for Codex. `CLAUDE.md` remains the Claude Code instruction
-source and is intentionally preserved. Do not rewrite Claude-specific commands,
-hooks, or slash-command workflows unless the user asks for a Codex-native
-conversion.
-
-## Codex Notes
-
-- Repo facts that Codex must know immediately.
-- Any Codex-specific command, safety, or parent-policy differences.
-```
-
-## Private Context
-
-Private context may be migrated, but never into repo instructions.
-
-Good private candidates:
-
-- People/team routing
-- Employee numbers, usernames, partner identifiers
-- Local operational preferences
-- Non-public escalation paths
-
-Recommended pattern:
-
-1. Copy to a private local path such as
-   `~/.codex/private/<domain>/<name>.md`, or the equivalent private path for
-   the target Codex setup.
-2. `chmod 600` the file.
-3. Add a narrow reference in the active global/user instruction location
-   describing when to read it.
-4. State that private data must not be copied into repo docs, tests, commits,
-   PRs, or public issue text unless the user explicitly asks for that exact
-   operational output.
-
-## MCP Handling
-
-Do not automatically convert `.mcp.json` into Codex MCP registration.
-
-Audit first:
-
-- What command is launched?
-- Which environment does it target?
-- Does it allow writes?
-- Is production read-only?
-- Are credentials/cookies local?
-- Is the MCP server needed for normal Codex work?
-
-Register only after user approval when write access or production data is
-involved.
-
-## Skill Artifacts
-
-When the source context is a skill, do not import it as plain `AGENTS.md`
-context. Audit it as a reusable capability with its own trigger semantics,
-resources, and runtime assumptions.
-
-The larger goal is ecosystem migration, not just preserving the Claude side in
-Codex. Claude official plugins, skills, and commands are useful source
-material, but they are legacy/compatibility candidates by default. Do not make
-`claude-plugins-official` the default Codex plugin baseline. First check whether
-the Codex environment has an official, curated, bundled, primary-runtime, or
-OpenAI Codex plugin that serves the same purpose.
-
-Prefer these Codex-side sources when available:
-
-- `openai-curated` marketplace entries, often displayed as Codex official.
-- `openai-bundled` plugins such as browser or other bundled runtime tools when
-  present in the target installation.
-- `openai-primary-runtime` plugins such as documents, spreadsheets, and
-  presentations.
-- `openai-codex` plugin capabilities for Codex-specific helper workflows.
-
-Keep a Claude-side plugin or skill only when the user explicitly wants it after
-seeing the trade-off, or when it is the clearest compatibility bridge for a
-specific workflow. Record that as a retained Claude plugin, Codex-native
-replacement, third-party exception, or deferred decision in the audit.
-
-Check:
-
-- `SKILL.md` frontmatter: `name`, `description`, trigger wording, and scope
-- `SKILL.md` body: reusable workflow vs project-specific or private assumptions
-- `references/`: durable docs only; remove stale or private examples
-- `scripts/`: preserve useful helpers, but inspect for hardcoded paths,
-  credentials, network assumptions, and unavailable tools
-- `assets/`: copy only files actually needed by outputs
-- `agents/openai.yaml`: create or update UI metadata when the skill should be
-  discoverable in Codex/OpenAI skill lists
-
-Decide:
-
-- `direct-copy`: already Codex-compatible and generic
-- `rewrite`: useful, but uses Claude/product-specific wording or paths
-- `split`: one large skill contains multiple unrelated workflows
-- `private`: contains company/person-specific examples or operational routing
-- `omit`: one-off prompt, stale guide, or non-reusable context
-
-Validate:
-
-- Skill name is lowercase hyphen-case
-- `description` says when to use the skill, not just what it is
-- References are linked from `SKILL.md`
-- No README/CHANGELOG-style clutter unless required by runtime behavior
-- Scripts can run in the target environment or are clearly marked as references
-
-### Plugin Ecosystem Migration
-
-Classify plugin-level migration separately from instruction text:
-
-- `codex-native-replacement`: A Codex official/curated/bundled plugin covers
-  the same job. Prefer this path.
-- `claude-plugin-retained`: A Claude official plugin remains useful enough to
-  keep, but only after explicit user confirmation and with compatibility notes.
-- `third-party-exception`: A non-official plugin or bridge has a clear purpose
-  that Codex-native plugins do not cover.
-- `deferred`: No safe equivalent is known yet, or auth/write/runtime behavior
-  needs separate research.
-
-Example mapping checks:
-
-- `frontend-design@claude-plugins-official` -> first check
-  `build-web-apps@openai-curated`.
-- `superpowers@claude-plugins-official` -> first check
-  `superpowers@openai-curated`.
-- `playwright@claude-plugins-official` -> first check Codex MCP Playwright
-  setup plus `browser@openai-bundled`.
-- `mcp-server-dev@claude-plugins-official` -> no guaranteed one-to-one Codex
-  first-party equivalent; investigate Codex/OpenAI developer plugins such as
-  `openai-developers` or `plugin-eval` before retaining the Claude plugin.
-- Reverse bridges such as `cc@sendbird` may be valid third-party exceptions
-  when their purpose is explicit and the user confirms the bridge behavior.
-
-Do not infer plugin equivalence from names alone. Compare purpose, available
-tools, auth model, write permissions, local runtime requirements, and whether
-the plugin is available in the target Codex installation.
-
-### Claude-Native Compatibility
-
-Classify Claude-native skills before importing:
-
-- `portable`: Mostly domain or workflow guidance. Safe to rewrite into a Codex
-  skill.
-- `portable-with-edits`: Useful, but mentions Claude tools, paths, memory, or
-  idioms. Rewrite those parts.
-- `bridge-only`: Too large or too Claude-specific to flatten safely. Create a
-  Codex bridge skill or context pointer and keep the source as reference.
-- `not-portable`: Depends on Claude-only runtime features, hooks, slash
-  commands, permissions, unavailable MCP servers, or session behavior. Do not
-  import as an active Codex skill.
-
-Do not blindly translate Claude tool names to Codex tool names. Map behavior,
-not spelling.
-
-Examples:
-
-- `Use Edit/Write` -> edit files using the available patch/edit mechanism
-- `Use Task agents` -> use subagents only when the user explicitly authorizes
-  delegation
-- `Read Claude memory` -> inspect configured private/local references when
-  needed
-- `Run /mcp reconnect` -> verify Codex MCP registration and reload behavior
-  separately
-
-If the imported skill would need production write access, real credentials,
-private people data, or unavailable Claude hooks to function, stop and ask
-whether to keep it as a private reference instead of an active skill.
-
 ## References
 
 - `references/audit-template.md`: migration audit template.
+- `references/agents-md-shapes.md`: native, bridge, and dual-run `AGENTS.md`
+  templates.
 - `references/ecosystem-matrix.md`: Claude-to-Codex ecosystem migration matrix.
+- `references/migration-workflow-details.md`: classification, child repo
+  selection, layer model, copy modes, rewrite rubric, and quality checks.
+- `references/runtime-and-skill-artifacts.md`: private context, MCP, runtime
+  config, plugin, and skill artifact migration.
