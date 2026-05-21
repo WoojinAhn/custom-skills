@@ -74,6 +74,55 @@ DEFAULT_CODEX_DOC_MAX_BYTES = 32768
 IMPORT_RE = re.compile(
     r"""^\s*(?:[-*+]\s*)?@(?P<path>(?:~|/|\.{1,2}/)?[A-Za-z0-9_.\-/]+)"""
 )
+PLUGIN_REF_RE = re.compile(r"(?P<name>[a-z0-9][a-z0-9-]*)@(?P<source>[a-z0-9][a-z0-9-]*)")
+
+PLUGIN_MAPPINGS = {
+    "frontend-design@claude-plugins-official": [
+        {
+            "candidate": "build-web-apps@openai-curated",
+            "confidence": "mapped",
+            "note": "Prefer Codex official web-app workflow before retaining Claude frontend-design.",
+        }
+    ],
+    "superpowers@claude-plugins-official": [
+        {
+            "candidate": "superpowers@openai-curated",
+            "confidence": "same-name",
+            "note": "Same name still requires behavior and trigger comparison.",
+        }
+    ],
+    "playwright@claude-plugins-official": [
+        {
+            "candidate": "browser@openai-bundled",
+            "confidence": "mapped",
+            "note": "Pair with Codex MCP Playwright review when browser automation is needed.",
+        },
+        {
+            "candidate": "mcp-playwright@codex-mcp",
+            "confidence": "research",
+            "note": "Check Codex MCP registration; not a plugin marketplace entry.",
+        },
+    ],
+    "mcp-server-dev@claude-plugins-official": [
+        {
+            "candidate": "openai-developers@openai-curated",
+            "confidence": "research",
+            "note": "No guaranteed one-to-one equivalent; inspect available OpenAI developer tooling.",
+        },
+        {
+            "candidate": "plugin-eval@openai-curated",
+            "confidence": "research",
+            "note": "Evaluate only if the task is plugin/server evaluation rather than MCP server authoring.",
+        },
+    ],
+    "cc@sendbird": [
+        {
+            "candidate": "",
+            "confidence": "third-party-exception",
+            "note": "Reverse bridge candidate; retain only with explicit user reason.",
+        }
+    ],
+}
 
 
 def parse_args() -> argparse.Namespace:
@@ -103,6 +152,28 @@ def parse_args() -> argparse.Namespace:
         choices=("markdown", "json"),
         default="markdown",
         help="Output format. Default: markdown.",
+    )
+    parser.add_argument(
+        "--codex-home",
+        default="~/.codex",
+        help="Codex home used for read-only plugin marketplace/cache discovery. Default: ~/.codex.",
+    )
+    parser.add_argument(
+        "--include-artifacts",
+        action="store_true",
+        help="Also inventory Codex/Claude plugin, skill, command, hook, agent, and marketplace artifacts.",
+    )
+    parser.add_argument(
+        "--artifact-scope",
+        choices=("active", "all"),
+        default="active",
+        help="Artifact scan scope. active scans installed/cache roots; all also scans marketplace staging/data. Default: active.",
+    )
+    parser.add_argument(
+        "--artifact-root",
+        action="append",
+        default=[],
+        help="Additional artifact root to scan. May be passed more than once.",
     )
     return parser.parse_args()
 
@@ -232,7 +303,7 @@ def read_json_file(path: Path) -> object | None:
 
 def settings_keys(repo: Path) -> set[str]:
     keys: set[str] = set()
-    for settings_file in (repo / ".claude").glob("settings*.json"):
+    for settings_file in iter_claude_settings_sources(repo):
         data = read_json_file(settings_file)
         if not isinstance(data, dict):
             keys.add("unreadable")
@@ -244,6 +315,382 @@ def settings_keys(repo: Path) -> set[str]:
         if "SessionStart" in json.dumps(data):
             keys.add("SessionStart")
     return keys
+
+
+def repo_name_looks_claude_native(repo: Path) -> bool:
+    tokens = name_tokens(repo.name)
+    return "claude" in tokens or (
+        bool(tokens & CLAUDE_NATIVE_KEYWORDS) and bool(tokens & CLAUDE_NATIVE_QUALIFIERS)
+    )
+
+
+def iter_claude_settings_sources(repo: Path) -> Iterable[Path]:
+    yield from (repo / ".claude").glob("settings*.json")
+
+    if not repo_name_looks_claude_native(repo):
+        return
+
+    for candidate in sorted(repo.glob("settings*.json")):
+        if candidate.is_file():
+            yield candidate
+    home_dir = repo / "home"
+    if home_dir.is_dir():
+        for candidate in sorted(home_dir.glob("settings*.json")):
+            if candidate.is_file():
+                yield candidate
+
+
+def collect_plugin_refs_from_json(value: object) -> set[str]:
+    refs: set[str] = set()
+    if isinstance(value, dict):
+        for key, item in value.items():
+            if isinstance(key, str):
+                refs.update(plugin_refs_from_text(key))
+            refs.update(collect_plugin_refs_from_json(item))
+    elif isinstance(value, list):
+        for item in value:
+            refs.update(collect_plugin_refs_from_json(item))
+    elif isinstance(value, str):
+        refs.update(plugin_refs_from_text(value))
+    return refs
+
+
+def plugin_refs_from_text(text: str) -> set[str]:
+    refs: set[str] = set()
+    for match in PLUGIN_REF_RE.finditer(text):
+        name = match.group("name")
+        source = match.group("source")
+        refs.add(f"{name}@{source}")
+    return refs
+
+
+def detected_plugin_refs(repo: Path) -> list[str]:
+    refs: set[str] = set()
+
+    for settings_file in iter_claude_settings_sources(repo):
+        data = read_json_file(settings_file)
+        if data is not None:
+            refs.update(collect_plugin_refs_from_json(data))
+
+    for source in iter_claude_markdown_sources(repo):
+        try:
+            refs.update(plugin_refs_from_text(source.read_text(encoding="utf-8", errors="replace")))
+        except OSError:
+            continue
+
+    return sorted(refs)
+
+
+def split_plugin_ref(ref: str) -> tuple[str, str]:
+    if "@" not in ref:
+        return ref, ""
+    name, source = ref.rsplit("@", 1)
+    return name, source
+
+
+def discover_codex_plugins(codex_home: Path) -> dict[str, list[str]]:
+    available: dict[str, set[str]] = {}
+
+    def add(name: str, source: str) -> None:
+        if not name:
+            return
+        available.setdefault(name, set()).add(source)
+
+    marketplace = codex_home / ".tmp" / "plugins" / ".agents" / "plugins" / "marketplace.json"
+    data = read_json_file(marketplace)
+    if isinstance(data, dict):
+        marketplace_name = str(data.get("name") or "openai-curated")
+        for plugin in data.get("plugins", []):
+            if isinstance(plugin, dict):
+                add(str(plugin.get("name") or ""), marketplace_name)
+
+    cache_root = codex_home / "plugins" / "cache"
+    if cache_root.is_dir():
+        for family in sorted(path for path in cache_root.iterdir() if path.is_dir()):
+            for plugin_dir in sorted(path for path in family.iterdir() if path.is_dir()):
+                add(plugin_dir.name, family.name)
+
+    return {name: sorted(sources) for name, sources in sorted(available.items())}
+
+
+def artifact_roots(codex_home: Path, scope: str, extra_roots: Iterable[str]) -> list[Path]:
+    roots = [
+        codex_home / "plugins" / "cache",
+        codex_home / "skills",
+        codex_home / "vendor_imports" / "skills",
+        Path("~/.claude/plugins/cache").expanduser(),
+        Path("~/.claude/commands").expanduser(),
+        Path("~/.claude/skills").expanduser(),
+        Path("~/.claude/agents").expanduser(),
+        Path("~/.claude/hooks").expanduser(),
+    ]
+    if scope == "all":
+        roots.extend(
+            [
+                codex_home / ".tmp" / "plugins",
+                codex_home / ".tmp" / "marketplaces",
+                Path("~/.claude/plugins/marketplaces").expanduser(),
+                Path("~/.claude/plugins/data").expanduser(),
+            ]
+        )
+    roots.extend(Path(raw).expanduser() for raw in extra_roots)
+
+    seen: set[Path] = set()
+    existing: list[Path] = []
+    for root in roots:
+        resolved = root.resolve()
+        if resolved in seen or not resolved.exists():
+            continue
+        seen.add(resolved)
+        if resolved.is_dir():
+            existing.append(resolved)
+    return existing
+
+
+def provider_from_path(path: Path) -> str:
+    parts = path.parts
+    for marker in ("cache", "marketplaces"):
+        if marker in parts:
+            index = parts.index(marker)
+            if index + 1 < len(parts):
+                return parts[index + 1]
+    known = {
+        "openai-bundled",
+        "openai-codex",
+        "openai-curated",
+        "openai-primary-runtime",
+        "claude-plugins-official",
+        "sendbird",
+    }
+    for part in parts:
+        if part in known:
+            return part
+    return ""
+
+
+def version_from_path(path: Path, name: str) -> str:
+    parts = list(path.parts)
+    if name in parts:
+        index = parts.index(name)
+        if index + 1 < len(parts):
+            return parts[index + 1]
+    return ""
+
+
+def ecosystem_from_signals(signals: Iterable[str], provider: str) -> str:
+    signal_set = set(signals)
+    if "has-codex-manifest" in signal_set and "has-claude-manifest" in signal_set:
+        return "mixed"
+    if provider.startswith("openai-") or "has-codex-manifest" in signal_set:
+        return "codex"
+    if provider.startswith("claude-") or "has-claude-manifest" in signal_set:
+        return "claude"
+    return "unknown"
+
+
+def artifact_row(
+    artifact_type: str,
+    name: str,
+    source_path: Path,
+    manifest_path: Path | None,
+    signals: list[str],
+) -> dict[str, object]:
+    provider = provider_from_path(source_path)
+    return {
+        "artifact_type": artifact_type,
+        "ecosystem": ecosystem_from_signals(signals, provider),
+        "provider": provider,
+        "name": name,
+        "version": version_from_path(source_path, name) or "unknown",
+        "source_path": str(source_path),
+        "manifest_path": str(manifest_path) if manifest_path else "",
+        "signals": sorted(set(signals)),
+    }
+
+
+def manifest_name(manifest_path: Path) -> str:
+    data = read_json_file(manifest_path)
+    if isinstance(data, dict) and data.get("name"):
+        return str(data["name"])
+    return manifest_path.parent.parent.name
+
+
+def inventory_artifacts(roots: list[Path]) -> list[dict[str, object]]:
+    rows: list[dict[str, object]] = []
+    seen: set[tuple[str, str]] = set()
+
+    for root in roots:
+        for manifest in sorted(root.rglob("plugin.json")):
+            if ".git" in manifest.parts:
+                continue
+            marker = manifest.parent.name
+            if marker not in {".codex-plugin", ".claude-plugin"}:
+                continue
+            plugin_root = manifest.parent.parent
+            signals = [
+                "has-codex-manifest" if marker == ".codex-plugin" else "has-claude-manifest"
+            ]
+            if (plugin_root / ".codex-plugin" / "plugin.json").is_file() and marker != ".codex-plugin":
+                signals.append("has-codex-manifest")
+            if (plugin_root / ".claude-plugin" / "plugin.json").is_file() and marker != ".claude-plugin":
+                signals.append("has-claude-manifest")
+            if any(plugin_root.glob("skills/*/SKILL.md")) or any(
+                plugin_root.glob(".claude/skills/*/SKILL.md")
+            ):
+                signals.append("has-skills")
+            if (plugin_root / "commands").is_dir() or (plugin_root / ".claude" / "commands").is_dir():
+                signals.append("has-commands")
+            if (plugin_root / "hooks").is_dir() or (plugin_root / ".claude" / "hooks").is_dir():
+                signals.append("has-hooks")
+            if (plugin_root / "agents").is_dir() or (plugin_root / ".claude" / "agents").is_dir():
+                signals.append("has-agents")
+
+            key = ("plugin", str(plugin_root))
+            if key in seen:
+                continue
+            seen.add(key)
+            artifact_type = "codex-plugin" if "has-codex-manifest" in signals else "claude-plugin"
+            if "has-codex-manifest" in signals and "has-claude-manifest" in signals:
+                signals.append("mixed-plugin-manifests")
+            rows.append(
+                artifact_row(
+                    artifact_type,
+                    manifest_name(manifest),
+                    plugin_root,
+                    manifest,
+                    signals,
+                )
+            )
+
+        for marketplace in sorted(root.rglob("marketplace.json")):
+            if ".git" in marketplace.parts:
+                continue
+            signals = ["marketplace-only"]
+            if ".codex-plugin" in marketplace.parts or ".agents" in marketplace.parts:
+                signals.append("has-codex-marketplace")
+            if ".claude-plugin" in marketplace.parts:
+                signals.append("has-claude-marketplace")
+            data = read_json_file(marketplace)
+            name = ""
+            if isinstance(data, dict):
+                name = str(data.get("name") or data.get("displayName") or marketplace.parent.name)
+            else:
+                name = marketplace.parent.name
+                signals.append("unreadable")
+            key = ("marketplace", str(marketplace))
+            if key in seen:
+                continue
+            seen.add(key)
+            rows.append(artifact_row("marketplace", name, marketplace.parent, marketplace, signals))
+
+        for skill in sorted(root.rglob("SKILL.md")):
+            if ".git" in skill.parts:
+                continue
+            skill_root = skill.parent
+            signals = ["skill-md"]
+            if ".claude" in skill.parts:
+                signals.append("claude-embedded-skill")
+            if (skill_root.parent.parent / ".codex-plugin" / "plugin.json").is_file():
+                signals.append("has-codex-manifest")
+            if (skill_root.parent.parent / ".claude-plugin" / "plugin.json").is_file():
+                signals.append("has-claude-manifest")
+            key = ("skill", str(skill_root))
+            if key in seen:
+                continue
+            seen.add(key)
+            rows.append(artifact_row("skill", skill_root.name, skill_root, skill, signals))
+
+        for artifact_type, pattern in (
+            ("command", "*.md"),
+            ("agent", "*.md"),
+            ("hook", "*"),
+        ):
+            if root.name != artifact_type + "s":
+                continue
+            for path in sorted(root.glob(pattern)):
+                if not path.is_file():
+                    continue
+                signals = [f"{artifact_type}-file"]
+                if artifact_type == "hook" and os.access(path, os.X_OK):
+                    signals.append("executable")
+                key = (artifact_type, str(path))
+                if key in seen:
+                    continue
+                seen.add(key)
+                rows.append(artifact_row(artifact_type, path.stem, path.parent, path, signals))
+
+    return sorted(
+        rows,
+        key=lambda row: (
+            str(row["artifact_type"]),
+            str(row["ecosystem"]),
+            str(row["provider"]),
+            str(row["name"]),
+            str(row["source_path"]),
+        ),
+    )
+
+
+def candidate_status(candidate_ref: str, available_plugins: dict[str, list[str]]) -> str:
+    if not candidate_ref:
+        return "not-applicable"
+    name, source = split_plugin_ref(candidate_ref)
+    if source == "codex-mcp":
+        return "manual-review"
+    sources = available_plugins.get(name, [])
+    if not sources:
+        return "not-found"
+    if source in sources:
+        return "available"
+    return "available-via-other-source"
+
+
+def plugin_candidates(
+    refs: Iterable[str], available_plugins: dict[str, list[str]]
+) -> list[dict[str, object]]:
+    candidates: list[dict[str, object]] = []
+    for ref in sorted(refs):
+        mappings = PLUGIN_MAPPINGS.get(ref)
+        if not mappings and ref.endswith("@claude-plugins-official"):
+            mappings = [
+                {
+                    "candidate": "",
+                    "confidence": "unknown",
+                    "note": "Claude official plugin detected; check Codex official/curated alternatives before retaining.",
+                }
+            ]
+        if not mappings:
+            continue
+        for mapping in mappings:
+            candidate = str(mapping.get("candidate") or "")
+            candidates.append(
+                {
+                    "source": ref,
+                    "candidate": candidate,
+                    "candidate_status": candidate_status(candidate, available_plugins),
+                    "confidence": mapping.get("confidence", "unknown"),
+                    "decision_required": True,
+                    "note": mapping.get("note", ""),
+                }
+            )
+    return candidates
+
+
+def plugin_decision_flags(
+    refs: Iterable[str], candidates: list[dict[str, object]]
+) -> list[str]:
+    flags: set[str] = set()
+    for ref in refs:
+        if ref.endswith("@claude-plugins-official"):
+            flags.add("claude-plugin-retained-requires-user-confirmation")
+        if ref == "cc@sendbird":
+            flags.add("third-party-exception-requires-reason")
+    for candidate in candidates:
+        if candidate.get("candidate_status") in {"not-found", "manual-review", "not-applicable"}:
+            flags.add("manual-plugin-review-required")
+        elif candidate.get("candidate_status") == "available":
+            flags.add("codex-native-candidate-available")
+    return sorted(flags)
 
 
 def name_tokens(path_text: str) -> set[str]:
@@ -377,7 +824,12 @@ def suggest_action(signals: list[str]) -> str:
     return "review-needed"
 
 
-def inventory(source: Path, destination: Path | None, max_depth: int) -> list[dict[str, object]]:
+def inventory(
+    source: Path,
+    destination: Path | None,
+    max_depth: int,
+    available_plugins: dict[str, list[str]],
+) -> list[dict[str, object]]:
     rows: list[dict[str, object]] = []
     seen: set[Path] = set()
 
@@ -396,6 +848,8 @@ def inventory(source: Path, destination: Path | None, max_depth: int) -> list[di
         agents_override_size = file_size(repo / "AGENTS.override.md")
         imports = import_stats(repo)
         claude_settings_keys = settings_keys(repo)
+        plugin_refs = detected_plugin_refs(repo)
+        candidates = plugin_candidates(plugin_refs, available_plugins)
         rows.append(
             {
                 "path": rel,
@@ -420,6 +874,9 @@ def inventory(source: Path, destination: Path | None, max_depth: int) -> list[di
                 ),
                 "agents_size_bytes": agents_size,
                 "agents_override_size_bytes": agents_override_size,
+                "detected_plugin_refs": plugin_refs,
+                "codex_plugin_candidates": candidates,
+                "plugin_decisions_required": plugin_decision_flags(plugin_refs, candidates),
                 "signals": signals,
                 "suggested_action": suggest_action(signals),
             }
@@ -451,9 +908,43 @@ def print_markdown(rows: list[dict[str, object]]) -> None:
         "is_claude_native_repo",
         "agents_size_bytes",
         "agents_override_size_bytes",
+        "detected_plugin_refs",
+        "codex_plugin_candidate_summary",
+        "plugin_decisions_required",
         "signals",
         "suggested_action",
     ]
+    print("| " + " | ".join(headers) + " |")
+    print("| " + " | ".join("---" for _ in headers) + " |")
+    for row in rows:
+        values = []
+        for header in headers:
+            if header == "codex_plugin_candidate_summary":
+                value = summarize_plugin_candidates(row["codex_plugin_candidates"])
+            else:
+                value = row[header]
+            if isinstance(value, list):
+                value = ", ".join(value)
+            values.append(markdown_escape(value))
+        print("| " + " | ".join(values) + " |")
+
+
+def print_artifact_markdown(rows: list[dict[str, object]]) -> None:
+    if not rows:
+        return
+    headers = [
+        "artifact_type",
+        "ecosystem",
+        "provider",
+        "name",
+        "version",
+        "source_path",
+        "manifest_path",
+        "signals",
+    ]
+    print()
+    print("## Ecosystem Artifacts")
+    print()
     print("| " + " | ".join(headers) + " |")
     print("| " + " | ".join("---" for _ in headers) + " |")
     for row in rows:
@@ -466,6 +957,21 @@ def print_markdown(rows: list[dict[str, object]]) -> None:
         print("| " + " | ".join(values) + " |")
 
 
+def summarize_plugin_candidates(candidates: object) -> str:
+    if not isinstance(candidates, list):
+        return ""
+    parts = []
+    for candidate in candidates:
+        if not isinstance(candidate, dict):
+            continue
+        source = candidate.get("source", "")
+        target = candidate.get("candidate") or "<none>"
+        status = candidate.get("candidate_status", "unknown")
+        confidence = candidate.get("confidence", "unknown")
+        parts.append(f"{source}->{target} [{status}/{confidence}]")
+    return "; ".join(parts)
+
+
 def main() -> None:
     args = parse_args()
     source = resolve_dir(args.source, "--source", must_exist=True)
@@ -474,12 +980,32 @@ def main() -> None:
         if args.destination
         else None
     )
+    codex_home = resolve_dir(args.codex_home, "--codex-home", must_exist=False)
 
-    rows = inventory(source, destination, args.max_depth)
+    available_plugins = discover_codex_plugins(codex_home)
+    rows = inventory(source, destination, args.max_depth, available_plugins)
+    artifacts = (
+        inventory_artifacts(artifact_roots(codex_home, args.artifact_scope, args.artifact_root))
+        if args.include_artifacts
+        else []
+    )
     if args.format == "json":
-        print(json.dumps(rows, indent=2, ensure_ascii=False))
+        if args.include_artifacts:
+            print(
+                json.dumps(
+                    {
+                        "repos": rows,
+                        "artifacts": artifacts,
+                    },
+                    indent=2,
+                    ensure_ascii=False,
+                )
+            )
+        else:
+            print(json.dumps(rows, indent=2, ensure_ascii=False))
     else:
         print_markdown(rows)
+        print_artifact_markdown(artifacts)
 
 
 if __name__ == "__main__":

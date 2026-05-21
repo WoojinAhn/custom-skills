@@ -53,7 +53,7 @@ Typical flow:
 
 | Skill | One-liner |
 |---|---|
-| [`codex-context-migration`](codex-context-migration/SKILL.md) | Audit-first setup or migration from Claude-era repo context into Codex `AGENTS.md`, covering in-place setup, full-workspace migration, child repo include/exclude selection, Claude rules/local/import inventory, generated instruction review, parent-policy inheritance, Codex discovery/config audit, runtime config separation, MCP audit, and instruction-load validation. |
+| [`codex-context-migration`](codex-context-migration/SKILL.md) | Audit-first setup or migration from Claude-era repo context into Codex `AGENTS.md`, covering in-place setup, full-workspace migration, child repo include/exclude selection, Claude rules/local/import inventory, generated instruction review, parent-policy inheritance, Codex discovery/config audit, runtime config separation, plugin/skill ecosystem migration, MCP audit, and instruction-load validation. |
 | [`triangulated-review`](triangulated-review/SKILL.md) | Three-reviewer parallel code audit with fact-checking for single-reviewer findings. Cost-pruned form of a larger multi-reviewer experiment. |
 | [`zoom-caption-capture`](zoom-caption-capture/SKILL.md) | Stream Zoom Web Client live captions via a `MutationObserver` inside `iframe#webclient`, with token-level overlap merging and Blob-download dump. Lossless raw buffer + deferred cleanup so an LLM pass can produce final minutes. |
 
@@ -75,15 +75,17 @@ Claude-native config/tooling repos such as `claude-config` are treated as
 explicit defer/exclude candidates rather than silently included by a full
 workspace migration.
 Claude official plugins are also not treated as Codex defaults: the workflow
-checks Codex official/curated/bundled alternatives first, and retains
-Claude-side plugins only after an explicit compatibility decision.
+checks Codex official/curated/bundled/primary-runtime alternatives first,
+records Codex-native replacement candidates, and retains Claude-side plugins
+only after an explicit compatibility decision.
 
 For larger workspaces, the bundled `scripts/inventory.py` helper can generate a
 read-only child repo/context table from user-provided source and destination
 paths, including `.claude/rules`, `CLAUDE.local.md`, Claude `@import` counts,
-Codex override files, and weak runtime-config signals. The helper is only an
-inventory aid; final include/exclude decisions remain part of the audit
-workflow.
+Codex override files, weak runtime-config signals, and optional
+plugin/skill/command/hook/agent artifact inventory. The helper is only an
+inventory aid; final include/exclude and ecosystem replacement decisions remain
+part of the audit workflow.
 
 It treats generated or converted `AGENTS.md` files as provenance to review, not
 as defects by default. Quality claims must be backed by repo facts, stale

@@ -118,12 +118,20 @@ repositories:
 python3 <skill-dir>/scripts/inventory.py \
   --source <source-root> \
   --destination <destination-root> \
+  --include-artifacts \
   --format markdown
 ```
 
 The helper only reports candidates and weak review signals. Do not treat
 `suggested_action` as a final include/exclude decision; use it to avoid missed
-repos and to prepare the user confirmation checklist.
+repos and to prepare the user confirmation checklist. `--include-artifacts`
+adds a separate plugin/skill/command/hook/agent inventory from Codex and Claude
+cache/config roots; treat those rows as ecosystem migration evidence, not as
+automatic migration decisions.
+
+Use `--artifact-scope all` only when marketplace staging/data must also be
+audited; the default `active` scope keeps the artifact table focused on
+installed/cache/user roots.
 
 ```bash
 git status --short --branch
@@ -829,3 +837,4 @@ whether to keep it as a private reference instead of an active skill.
 ## References
 
 - `references/audit-template.md`: migration audit template.
+- `references/ecosystem-matrix.md`: Claude-to-Codex ecosystem migration matrix.

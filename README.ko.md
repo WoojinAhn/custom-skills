@@ -53,7 +53,7 @@ python3 codex-context-migration/scripts/inventory.py \
 
 | 스킬 | 한 줄 설명 |
 |---|---|
-| [`codex-context-migration`](codex-context-migration/SKILL.md) | Claude-era repo context를 Codex `AGENTS.md`로 audit-first 세팅/이관. in-place setup, full-workspace migration, 하위 repo include/exclude 선택, Claude rules/local/import inventory, generated instruction 검토, parent-policy inheritance, Codex discovery/config audit, runtime config 분리, MCP audit, instruction-load 검증 포함. |
+| [`codex-context-migration`](codex-context-migration/SKILL.md) | Claude-era repo context를 Codex `AGENTS.md`로 audit-first 세팅/이관. in-place setup, full-workspace migration, 하위 repo include/exclude 선택, Claude rules/local/import inventory, generated instruction 검토, parent-policy inheritance, Codex discovery/config audit, runtime config 분리, plugin/skill ecosystem migration, MCP audit, instruction-load 검증 포함. |
 | [`triangulated-review`](triangulated-review/SKILL.md) | 3 reviewer 패러럴 코드 감사 + 단일 reviewer 발견에 대한 fact-check. 더 큰 multi-reviewer 실험을 cost-pruned한 형태. |
 | [`zoom-caption-capture`](zoom-caption-capture/SKILL.md) | Zoom 웹 클라이언트의 `iframe#webclient` 내부에 `MutationObserver`를 붙여 실시간 자막을 스트리밍 캡처. 토큰 단위 overlap merge + Blob 다운로드로 dump. raw buffer는 무손실 보존, cleanup은 LLM pass에서 처리. |
 
@@ -72,15 +72,17 @@ copy-only, defer 중 어떻게 처리할지도 먼저 확정합니다. 그다음
 `claude-config` 같은 Claude-native config/tooling repo는 전체 workspace
 이관이라고 자동 포함하지 않고, 명시적인 defer/exclude 후보로 먼저 올립니다.
 Claude official plugin도 Codex 기본값으로 보지 않습니다. 먼저 Codex
-official/curated/bundled 대안을 검토하고, Claude 쪽 plugin은 호환성 판단을
-명시적으로 거친 뒤에만 유지합니다.
+official/curated/bundled/primary-runtime 대안을 검토하고, Codex-native
+replacement 후보를 기록한 뒤, Claude 쪽 plugin은 호환성 판단을 명시적으로
+거친 뒤에만 유지합니다.
 
 큰 workspace에서는 포함된 `scripts/inventory.py` helper로 사용자가 지정한
 출발지/목적지 경로 기준의 read-only 하위 repo/context 표를 만들 수 있습니다.
 `.claude/rules`, `CLAUDE.local.md`, Claude `@import` count, Codex override
-파일, runtime-config 약한 신호까지 함께 보여줍니다. 이 helper는 누락 방지용
-inventory 도구일 뿐이며, 최종 include/exclude 판단은 audit workflow 안에서
-확정합니다.
+파일, runtime-config 약한 신호, 선택적 plugin/skill/command/hook/agent artifact
+inventory까지 함께 보여줍니다. 이 helper는 누락 방지용 inventory 도구일
+뿐이며, 최종 include/exclude와 ecosystem replacement 판단은 audit workflow
+안에서 확정합니다.
 
 생성 또는 변환된 `AGENTS.md`는 기본적으로 결함으로 보지 않고, 검토해야 할
 provenance로 다룹니다. 품질 판단은 repo 사실, stale reference 검사, domain
