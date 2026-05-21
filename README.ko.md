@@ -115,7 +115,8 @@ instruction, bridge, private local context, omit 중 어디에 둘지 결정한 
 Claude official plugin도 Codex 기본값으로 보지 않습니다. 먼저 Codex
 official/curated/bundled/primary-runtime 대안을 검토하고, Codex-native
 replacement 후보를 기록한 뒤, Claude 쪽 plugin은 호환성 판단을 명시적으로
-거친 뒤에만 유지합니다.
+거친 뒤에만 유지합니다. 이 replacement 후보는 보장값이 아니며, 대상 Codex
+설치 환경에서 실제 사용 가능 여부를 확인한 뒤 equivalent로 다뤄야 합니다.
 
 큰 workspace에서는 포함된 `scripts/inventory.py` helper로 사용자가 지정한
 출발지/목적지 경로 기준의 read-only 하위 repo/context 표를 만들 수 있습니다.

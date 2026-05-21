@@ -118,7 +118,9 @@ workspace migration.
 Claude official plugins are also not treated as Codex defaults: the workflow
 checks Codex official/curated/bundled/primary-runtime alternatives first,
 records Codex-native replacement candidates, and retains Claude-side plugins
-only after an explicit compatibility decision.
+only after an explicit compatibility decision. Those replacement candidates
+must be verified against the target Codex installation before they are treated
+as available equivalents.
 
 For larger workspaces, the bundled `scripts/inventory.py` helper can generate a
 read-only child repo/context table from user-provided source and destination
