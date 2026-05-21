@@ -68,6 +68,9 @@ Destination: `<destination path>`
 
 ## Plugin Ecosystem Classification
 
+Codex-native candidates are not guarantees. Verify target-environment
+availability and behavior before choosing a replacement.
+
 | Source plugin/skill | Source ecosystem | Purpose | Codex-native candidate | Decision | Evidence |
 | --- | --- | --- | --- | --- | --- |
 | `frontend-design` | `claude-plugins-official` | frontend UI generation | `build-web-apps@openai-curated` | Codex-native replacement / retained / deferred |  |

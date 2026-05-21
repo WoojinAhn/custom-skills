@@ -124,6 +124,18 @@ and consistency with durable source files.
 Use the bundled read-only inventory helper when scanning a workspace with child
 repositories:
 
+For `setup-in-place`:
+
+```bash
+python3 <skill-dir>/scripts/inventory.py \
+  --source <source-root> \
+  --guided-auto-plan \
+  --include-artifacts \
+  --format markdown
+```
+
+For destination-based migration:
+
 ```bash
 python3 <skill-dir>/scripts/inventory.py \
   --source <source-root> \

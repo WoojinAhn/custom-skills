@@ -12,8 +12,6 @@ Use for Codex-native repos when durable source context can be safely flattened.
 
 One paragraph with purpose and scope.
 
-Follow `/path/to/workspace/AGENTS.md` for workspace policy.
-
 ## Instruction Authority
 
 This `AGENTS.md` is the authoritative Codex instruction file for this

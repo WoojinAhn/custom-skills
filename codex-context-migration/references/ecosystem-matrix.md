@@ -51,6 +51,11 @@ automation; it is not an automatic decision engine.
 
 ## Plugin Ecosystem Matrix
 
+The Codex-first checks below are migration candidates, not guaranteed
+equivalents. Verify availability in the target Codex installation before
+choosing `Codex-native replacement`, and compare behavior before dropping a
+Claude-side plugin.
+
 | Claude source | Codex-first check | Default disposition | Validation |
 | --- | --- | --- | --- |
 | `frontend-design@claude-plugins-official` | `build-web-apps@openai-curated` | `codex-native-replacement` candidate | Compare workflow semantics |
@@ -91,4 +96,3 @@ record the final decision as `Claude plugin retained`,
 | Child repo | Active `AGENTS.md`, parent policy visibility, `CLAUDE.md` authority status |
 | Runtime config | Codex config values, sandbox/approval posture, MCP registrations |
 | Plugin ecosystem | Detected Claude plugins, Codex candidates, retained exceptions, unresolved risks |
-
