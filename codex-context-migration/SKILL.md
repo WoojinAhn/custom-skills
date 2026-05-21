@@ -325,6 +325,98 @@ When source `AGENTS.md` is `generated-review`, compare it with `CLAUDE.md`,
 durable docs, and repo facts before deciding whether to reuse, revise, or
 ignore it as source material.
 
+Treat `CLAUDE.md` as a high-signal intent source, not just text to rename.
+Well-maintained Claude memory often contains the best available hints about
+the repository's purpose, operating style, constraints, and risks. A native
+Codex rewrite should first infer the intended working model from `CLAUDE.md`,
+then express that model in Codex terms.
+
+When reading `CLAUDE.md`, extract these signals before writing `AGENTS.md`:
+
+- Project purpose and user/domain context.
+- Stack, commands, test/build/deploy workflow, and repo layout.
+- Boundaries, invariants, generated files, data safety, auth, and deployment
+  cautions.
+- Collaboration workflow such as issue-first, branch, commit, PR, and review
+  habits.
+- Tool mechanics that were right for Claude but need Codex equivalents,
+  removal, or an explicit defer note.
+
+Do not flatten `CLAUDE.md` mechanically. Reorganize it into a concise native
+shape: overview, commands, architecture, critical rules, workflow, and
+references. Preserve nuance from the source, but drop Claude boilerplate and
+stale session mechanics.
+
+Code or README inspection is a confidence check, not a prerequisite for every
+repo. Use it when `CLAUDE.md` is missing, vague, stale-looking, internally
+contradictory, or when commands/paths are risky enough that a wrong instruction
+would cause bad work.
+
+Use this transformation rubric for `CLAUDE.md` sections:
+
+| Source signal in `CLAUDE.md` | Native `AGENTS.md` destination | Rewrite rule |
+| --- | --- | --- |
+| Project overview, target users, domain context | `## Overview` | Keep the intent and domain language; remove Claude boilerplate. |
+| Install, run, build, test, deploy commands | `## Commands` | Preserve real commands exactly; update only stale workspace paths. |
+| Directory map, modules, layers, package boundaries | `## Architecture` | Compress to the smallest map needed before editing code. |
+| Invariants, generated files, data/auth/deploy cautions | `## Critical Rules` | Keep as loaded rules; do not bury safety constraints in long prose. |
+| Issue, branch, commit, PR, review habits | `## Workflow` | Convert agent names and branch prefixes only when they describe agent behavior. |
+| Claude hooks, slash commands, MCP/session mechanics | `## Deferred Runtime Migration` or omit | Keep durable intent; defer runtime syntax unless Codex support is confirmed. |
+| Private people, credentials, routing, local secrets | Private reference or omit | Never copy sensitive material into repo instructions. |
+| Long background docs or procedures | `## References` | Link or reference instead of inlining when always-loaded size would grow. |
+
+Examples:
+
+Bad mechanical conversion:
+
+```markdown
+# AGENTS.md
+
+This file provides guidance to Claude Code when working with this repository.
+
+Before changing this repo, read `CLAUDE.md`; it contains the detailed rules.
+```
+
+Why it is bad: Codex still gets Claude boilerplate, no native authority, and no
+immediate repo rules.
+
+Better native rewrite:
+
+```markdown
+# Spring Commerce
+
+Follow `/workspace/AGENTS.md` for workspace policy.
+
+## Instruction Authority
+
+This `AGENTS.md` is authoritative for Codex. `CLAUDE.md` is retained only as
+migration source material.
+
+## Commands
+
+- `./gradlew test`
+- `./gradlew bootRun`
+
+## Architecture
+
+Multi-module Spring Boot service. Domain modules depend only on `common`.
+
+## Critical Rules
+
+- Manage schema through Flyway migrations; do not rely on JPA schema creation.
+- Keep write APIs behind admin authorization unless a local rule says otherwise.
+```
+
+Preserve product-specific Claude facts when they are the repository subject:
+
+```markdown
+## Repository Context
+
+This repo syncs Claude Code configuration files. `CLAUDE.md`,
+`~/.claude/settings.json`, and hook scripts are real managed artifacts, not
+Codex instruction sources.
+```
+
 Do not perform broad product-name replacement. Preserve domain facts such as:
 
 - Real package names, npm scopes, binary names, and import paths.
