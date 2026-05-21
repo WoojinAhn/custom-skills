@@ -8,23 +8,46 @@ Each skill lives in its own directory with a `SKILL.md` (frontmatter + body).
 To use a Claude Code skill, symlink it into `~/.claude/skills/`:
 
 ```bash
-ln -s ~/home/custom-skills/<skill-name> ~/.claude/skills/<skill-name>
+ln -s <repo-path>/<skill-name> ~/.claude/skills/<skill-name>
 ```
 
 To use a Codex skill, symlink or copy it into `~/.codex/skills/`:
 
 ```bash
-ln -s ~/home/custom-skills/<skill-name> ~/.codex/skills/<skill-name>
+ln -s <repo-path>/<skill-name> ~/.codex/skills/<skill-name>
 ```
 
 The target agent picks it up on the next session.
+
+## Main Skill
+
+[`codex-context-migration`](codex-context-migration/SKILL.md) is the public-ready
+focus of this repo. It helps migrate Claude-era workspace and repository
+context into Codex `AGENTS.md` files without blindly renaming `CLAUDE.md` or
+dumping Claude runtime mechanics into always-loaded instructions.
+
+Quick inventory:
+
+```bash
+python3 codex-context-migration/scripts/inventory.py \
+  --source ~/old-workspace \
+  --destination ~/new-codex-workspace \
+  --format markdown
+```
+
+Before rewriting, decide:
+
+- Copy mode: `context-only` or `full-workspace`
+- Target posture: `codex-native` or `dual-run-current-workspace`
+- Child repo selection: `all`, `selected`, or `defer-children`
+- Parent policy mode: `isolated` or `inherit-parent`
 
 ## Skills
 
 | Skill | One-liner |
 |---|---|
 | [`codex-context-migration`](codex-context-migration/SKILL.md) | Audit-first migration from Claude-era repo context into Codex `AGENTS.md`, covering context-only vs full-workspace copy, child repo include/exclude selection, Claude rules/local/import inventory, generated instruction review, parent-policy inheritance, Codex discovery/config audit, runtime config separation, MCP audit, and instruction-load validation. |
-| [`triangulated-review`](triangulated-review/SKILL.md) | Three-reviewer parallel code audit (senior + codex max + simplify) with codex fact-check on single-reviewer findings. Cost-pruned form of the 5-reviewer pass run on CursorMeter #61. |
+| [`triangulated-review`](triangulated-review/SKILL.md) | Three-reviewer parallel code audit with fact-checking for single-reviewer findings. Cost-pruned form of a larger multi-reviewer experiment. |
 | [`zoom-caption-capture`](zoom-caption-capture/SKILL.md) | Stream Zoom Web Client live captions via a `MutationObserver` inside `iframe#webclient`, with token-level overlap merging and Blob-download dump. Lossless raw buffer + deferred cleanup so an LLM pass can produce final minutes. |
 
 ### `codex-context-migration`

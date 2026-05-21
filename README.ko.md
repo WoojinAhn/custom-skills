@@ -8,23 +8,47 @@
 Claude Code에서 사용하려면 `~/.claude/skills/`에 symlink 걸기:
 
 ```bash
-ln -s ~/home/custom-skills/<skill-name> ~/.claude/skills/<skill-name>
+ln -s <repo-path>/<skill-name> ~/.claude/skills/<skill-name>
 ```
 
 Codex에서 사용하려면 `~/.codex/skills/`에 symlink 또는 copy:
 
 ```bash
-ln -s ~/home/custom-skills/<skill-name> ~/.codex/skills/<skill-name>
+ln -s <repo-path>/<skill-name> ~/.codex/skills/<skill-name>
 ```
 
 다음 새 세션부터 해당 agent가 인식합니다.
+
+## 대표 스킬
+
+[`codex-context-migration`](codex-context-migration/SKILL.md)이 이 repo에서
+공개용으로 가장 신경 쓴 핵심 스킬입니다. `CLAUDE.md`를 단순 rename하지 않고,
+Claude-era workspace/repository context를 Codex `AGENTS.md`로 audit-first
+이관하는 흐름을 다룹니다. Claude runtime mechanics를 always-loaded instruction에
+그대로 dump하지 않는 것도 중요한 목표입니다.
+
+Quick inventory:
+
+```bash
+python3 codex-context-migration/scripts/inventory.py \
+  --source ~/old-workspace \
+  --destination ~/new-codex-workspace \
+  --format markdown
+```
+
+rewrite 전에 먼저 결정할 것:
+
+- Copy mode: `context-only` 또는 `full-workspace`
+- Target posture: `codex-native` 또는 `dual-run-current-workspace`
+- Child repo selection: `all`, `selected`, `defer-children`
+- Parent policy mode: `isolated` 또는 `inherit-parent`
 
 ## Skills
 
 | 스킬 | 한 줄 설명 |
 |---|---|
 | [`codex-context-migration`](codex-context-migration/SKILL.md) | Claude-era repo context를 Codex `AGENTS.md`로 audit-first 이관. context-only/full-workspace 복사, 하위 repo include/exclude 선택, Claude rules/local/import inventory, generated instruction 검토, parent-policy inheritance, Codex discovery/config audit, runtime config 분리, MCP audit, instruction-load 검증 포함. |
-| [`triangulated-review`](triangulated-review/SKILL.md) | 3 reviewer 패러럴 코드 감사 (senior + codex max + simplify) + 단일 reviewer 발견에 대한 codex fact-check. CursorMeter #61 5-reviewer 실험의 cost-pruned 버전. |
+| [`triangulated-review`](triangulated-review/SKILL.md) | 3 reviewer 패러럴 코드 감사 + 단일 reviewer 발견에 대한 fact-check. 더 큰 multi-reviewer 실험을 cost-pruned한 형태. |
 | [`zoom-caption-capture`](zoom-caption-capture/SKILL.md) | Zoom 웹 클라이언트의 `iframe#webclient` 내부에 `MutationObserver`를 붙여 실시간 자막을 스트리밍 캡처. 토큰 단위 overlap merge + Blob 다운로드로 dump. raw buffer는 무손실 보존, cleanup은 LLM pass에서 처리. |
 
 ### `codex-context-migration`
