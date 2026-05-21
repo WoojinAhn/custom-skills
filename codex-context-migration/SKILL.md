@@ -52,16 +52,26 @@ Ask for, infer, or explicitly record these choices before starting.
 
 Do not infer the choices that can materially change files. Ask the user
 explicitly before copying or rewriting when any of these are not already stated:
-copy mode, target posture, parent policy mode, child repo migration selection,
-and whether child repos should be native, bridge, or dual-run. The target
-posture must always be confirmed in the user's words because `codex-native`
-and `dual-run-current-workspace` require opposite handling of `CLAUDE.md`.
+operation mode, target posture, parent policy mode, child repo migration
+selection, and whether child repos should be native, bridge, or dual-run. The
+target posture must always be confirmed in the user's words because
+`codex-native` and `dual-run-current-workspace` require opposite handling of
+`CLAUDE.md`.
 
-- Source root and destination root.
-- Copy mode:
-  - `context-only`: migrate instructions, memory, MCP config, and referenced
-    knowledge files only.
-  - `full-workspace`: also copy code repositories and ordinary project files.
+- Operation mode:
+  - `setup-in-place`: keep the existing workspace/repo hierarchy and add or
+    update Codex `AGENTS.md`, parent-policy references, audits, and optional
+    Codex config checks in place. This is the default when the user wants to
+    try Codex without moving code.
+  - `migrate-full-workspace`: copy the workspace and child repositories to a
+    new destination, then rewrite Codex context there. This is the default when
+    the user wants a separate Codex-native workspace.
+  - `context-only`: advanced/special-case mode. Copy only instructions,
+    memory, MCP config, and referenced knowledge files to a destination while
+    leaving code repositories to be cloned or managed separately.
+- Source root. Destination root is required for `migrate-full-workspace` and
+  `context-only`; it is not required for `setup-in-place` unless the user wants
+  audit/output files written elsewhere.
 - `AGENTS.md` trust mode:
   - `trusted`: source `AGENTS.md` is user-authored and may be used as source.
   - `generated-review`: source `AGENTS.md` appears generated or mechanically
@@ -222,8 +232,8 @@ For each child repo, choose one action:
   Claude source. Use this when the target posture is
   `dual-run-current-workspace` or when the repo is intentionally still operated
   by Claude Code.
-- `include-copy-only`: copy the repo when `full-workspace` is requested, but do
-  not rewrite instructions yet.
+- `include-copy-only`: copy the repo when `migrate-full-workspace` is
+  requested, but do not rewrite instructions yet.
 - `exclude`: do not copy or rewrite this child repo during this migration.
 - `defer`: leave the repo untouched for a later pass.
 
@@ -242,7 +252,7 @@ Good exclusion or defer candidates include:
 Do not exclude a repo just because it contains Claude-era files. Exclude or
 defer it only when there is a concrete reason, and record that reason.
 Conversely, do not silently include a Claude-native config/tooling repo just
-because `full-workspace` copy was requested or because it has a useful
+because a full workspace migration was requested or because it has a useful
 `CLAUDE.md`. Present it as `defer` or `exclude` unless the user explicitly opts
 in to copying or bridging that repo.
 
@@ -294,13 +304,27 @@ bridge only when native conversion would be unsafe in the current pass. Use
 - Repo `AGENTS.md` should contain only repo-specific commands, architecture,
   gotchas, and exceptions.
 
-6. Copy files conservatively.
+6. Set up or copy files conservatively.
+
+For `setup-in-place`, do not copy repositories. Work in the existing source
+root:
+
+- Inventory the current workspace and child repos.
+- Add or update root/workspace `AGENTS.md` in place.
+- Add or update child repo `AGENTS.md` files only for the confirmed child repo
+  selection.
+- Preserve `CLAUDE.md` and Claude runtime files unless the user explicitly
+  asks for a Codex-native cleanup. In-place setup often means Claude and Codex
+  will coexist.
+- Record all modified files in the audit because this mode changes the active
+  workspace directly.
 
 For `context-only`, copy only instruction/memory/knowledge/MCP material and
-document that code repositories were intentionally not copied.
+document that code repositories were intentionally not copied. Treat this as an
+advanced/special-case mode, not the default public path.
 
-For `full-workspace`, copy code and ordinary project files too, while still
-excluding generated local state.
+For `migrate-full-workspace`, copy code and ordinary project files too, while
+still excluding generated local state.
 
 - Apply the confirmed child repo selection before copying. `exclude` and
   `defer` child repos are not copied or rewritten. `include-copy-only` repos
@@ -315,9 +339,11 @@ excluding generated local state.
 git ls-files --error-unmatch .env >/dev/null 2>&1 && echo tracked || echo untracked
 ```
 
-After a full-workspace copy, verify that source and destination repo counts
-match and that tracked status differences are explained by pre-existing source
-state or intentional migration files.
+After a `migrate-full-workspace` copy, verify that source and destination repo
+counts match and that tracked status differences are explained by pre-existing
+source state or intentional migration files. For `setup-in-place`, verify the
+workspace's Git statuses before and after so user changes are distinguishable
+from migration edits.
 
 7. Rewrite `AGENTS.md` natively.
 
@@ -534,6 +560,8 @@ facts, preserves stale execution context, or omits required child coverage.
 A migration is not complete until these are true:
 
 - The target has an `AGENTS.md` or an intentional bridge `AGENTS.md`.
+- Operation mode is recorded as `setup-in-place`, `migrate-full-workspace`, or
+  advanced `context-only`, and the file changes match that mode.
 - Workspace/global layering is explicit, especially when child directories are
   separate Git repositories.
 - Parent policy mode for child Git repositories is recorded as `isolated` or
@@ -559,8 +587,9 @@ A migration is not complete until these are true:
   unavailable, and oversized instruction-file risk is handled or documented.
 - Deferred native flattening, bridge-only areas, and omitted material are
   documented.
-- If full-workspace copy was requested, source and destination repo counts
-  match or every mismatch is explained.
+- If `migrate-full-workspace` was requested, source and destination repo counts
+  match or every mismatch is explained. If `setup-in-place` was requested,
+  before/after Git status is recorded for modified repos.
 - If source `AGENTS.md` files were generated or converted, the audit records
   whether they were reused, revised, or ignored, with evidence.
 - Quality comparison records evidence for any claim that one migration result

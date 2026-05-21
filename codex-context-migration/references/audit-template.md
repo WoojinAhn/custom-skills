@@ -10,7 +10,8 @@ Destination: `<destination path>`
 - Working tree:
 - Source root:
 - Destination root:
-- Copy mode: `context-only` / `full-workspace`
+- Operation mode: `setup-in-place` / `migrate-full-workspace` / `context-only`
+- Copy mode detail: none / `context-only` / `full-workspace`
 - Inventory command:
 - Import scan command:
 - Import recursion depth checked:
