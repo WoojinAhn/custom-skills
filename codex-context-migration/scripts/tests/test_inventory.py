@@ -1,4 +1,5 @@
 import importlib.util
+import json
 import sys
 from pathlib import Path
 
@@ -147,3 +148,105 @@ def test_iter_git_roots_detects_git_file_marker(tmp_path):
     assert roots == [repo]
     assert rows[0]["path"] == "repo"
     assert rows[0]["has_git"] is True
+
+
+def test_plugin_mappings_load_from_json_without_code_change(tmp_path):
+    mappings = tmp_path / "plugin-mappings.json"
+    mappings.write_text(
+        json.dumps(
+            {
+                "_schema": {"description": "test schema"},
+                "custom@claude-plugins-official": [
+                    {
+                        "candidate": "custom@openai-curated",
+                        "confidence": "mapped",
+                        "note": "Loaded from fixture JSON.",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    loaded = inventory.load_plugin_mappings(mappings)
+    candidates = inventory.plugin_candidates(
+        ["custom@claude-plugins-official"],
+        {"custom": ["openai-curated"]},
+        loaded,
+    )
+
+    assert candidates[0]["candidate"] == "custom@openai-curated"
+    assert candidates[0]["candidate_status"] == "available"
+
+
+def test_artifact_source_class_distinguishes_system_and_user_skills(tmp_path):
+    codex_home = tmp_path / ".codex"
+    system_skill = codex_home / "skills" / ".system" / "imagegen"
+    user_skill = codex_home / "skills" / "custom-skill"
+    system_skill.mkdir(parents=True)
+    user_skill.mkdir(parents=True)
+    (system_skill / "SKILL.md").write_text("---\nname: imagegen\n---\n", encoding="utf-8")
+    (user_skill / "SKILL.md").write_text("---\nname: custom-skill\n---\n", encoding="utf-8")
+
+    rows = inventory.inventory_artifacts([codex_home / "skills"])
+    by_name = {row["name"]: row for row in rows}
+
+    assert by_name["imagegen"]["source_class"] == "system"
+    assert by_name["custom-skill"]["source_class"] == "user"
+
+
+def test_markdown_report_summarizes_unreadable_sources(tmp_path, capsys):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / ".git").mkdir()
+    (repo / "CLAUDE.md").write_text("@./note.md\n", encoding="utf-8")
+    (repo / "CLAUDE.md").chmod(0)
+    try:
+        rows = inventory.inventory(repo, None, 5, {})
+    finally:
+        (repo / "CLAUDE.md").chmod(0o600)
+
+    inventory.print_markdown(rows)
+
+    assert "Total unreadable markdown sources: 1" in capsys.readouterr().out
+
+
+def test_inventory_audit_detail_includes_per_import_rows(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / ".git").mkdir()
+    docs = repo / "docs"
+    docs.mkdir()
+    (docs / "foo.md").write_text("foo\n", encoding="utf-8")
+    (repo / "CLAUDE.md").write_text(
+        "@docs/foo.md\n@~/notes.md\n@../../../../etc/passwd\n",
+        encoding="utf-8",
+    )
+
+    rows = inventory.inventory(repo, None, 5, {}, audit_detail=True)
+    detail = rows[0]["claude_imports_detail"]
+
+    assert [item["kind"] for item in detail] == ["repo", "home", "external"]
+    assert detail[0]["exists"] is True
+    assert detail[1]["exists"] is False
+    assert detail[2]["exists"] is None
+
+
+def test_artifact_summary_counts_by_type_ecosystem_provider(tmp_path, capsys):
+    codex_plugin = tmp_path / "plugins" / "cache" / "openai-bundled" / "browser" / "1.0.0"
+    codex_plugin.mkdir(parents=True)
+    (codex_plugin / ".codex-plugin").mkdir()
+    (codex_plugin / ".codex-plugin" / "plugin.json").write_text(
+        '{"name":"browser"}\n',
+        encoding="utf-8",
+    )
+    user_skill = tmp_path / "skills" / "custom"
+    user_skill.mkdir(parents=True)
+    (user_skill / "SKILL.md").write_text("---\nname: custom\n---\n", encoding="utf-8")
+    rows = inventory.inventory_artifacts([tmp_path])
+
+    inventory.print_artifact_markdown(rows, output="summary")
+
+    output = capsys.readouterr().out
+    assert "| plugin | codex | openai-bundled | 1 |" in output
+    assert "| skill | unknown |  | 1 |" in output

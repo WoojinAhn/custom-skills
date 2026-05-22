@@ -1,0 +1,55 @@
+{
+  "_schema": {
+    "description": "Claude plugin reference to Codex candidate mappings. Top-level keys are '<plugin-name>@<provider>'. Each value is a list of candidate decisions.",
+    "entry": {
+      "candidate": "Candidate plugin ref, or empty string when no direct candidate exists.",
+      "confidence": "Mapping confidence label such as mapped, same-name, research, or third-party-exception.",
+      "note": "Short audit note shown in inventory output."
+    }
+  },
+  "frontend-design@claude-plugins-official": [
+    {
+      "candidate": "build-web-apps@openai-curated",
+      "confidence": "mapped",
+      "note": "Prefer Codex official web-app workflow before retaining Claude frontend-design."
+    }
+  ],
+  "superpowers@claude-plugins-official": [
+    {
+      "candidate": "superpowers@openai-curated",
+      "confidence": "same-name",
+      "note": "Same name still requires behavior and trigger comparison."
+    }
+  ],
+  "playwright@claude-plugins-official": [
+    {
+      "candidate": "browser@openai-bundled",
+      "confidence": "mapped",
+      "note": "Pair with Codex MCP Playwright review when browser automation is needed."
+    },
+    {
+      "candidate": "mcp-playwright@codex-mcp",
+      "confidence": "research",
+      "note": "Check Codex MCP registration; not a plugin marketplace entry."
+    }
+  ],
+  "mcp-server-dev@claude-plugins-official": [
+    {
+      "candidate": "openai-developers@openai-curated",
+      "confidence": "research",
+      "note": "No guaranteed one-to-one equivalent; inspect available OpenAI developer tooling."
+    },
+    {
+      "candidate": "plugin-eval@openai-curated",
+      "confidence": "research",
+      "note": "Evaluate only if the task is plugin/server evaluation rather than MCP server authoring."
+    }
+  ],
+  "cc@sendbird": [
+    {
+      "candidate": "",
+      "confidence": "third-party-exception",
+      "note": "Reverse bridge candidate; retain only with explicit user reason."
+    }
+  ]
+}
