@@ -73,9 +73,11 @@ CLAUDE_NATIVE_QUALIFIERS = {
 DEFAULT_CODEX_DOC_MAX_BYTES = 32768
 CONTEXT_ROOT_MARKERS = ("SKILL.md", "CLAUDE.md", "AGENTS.md", ".claude", ".mcp.json")
 
-IMPORT_RE = re.compile(
+DIRECTIVE_IMPORT_RE = re.compile(
     r"""^\s*(?:[-*+]\s*)?@(?P<path>(?:~|/|\.{1,2}/)?[A-Za-z0-9_.\-/]+)"""
 )
+IMPORT_RE = DIRECTIVE_IMPORT_RE
+INLINE_REF_RE = re.compile(r"""(?:^|\s)@(?P<path>[A-Za-z0-9_.\-/]+)""")
 PLUGIN_REF_RE = re.compile(r"(?P<name>[a-z0-9][a-z0-9-]*)@(?P<source>[a-z0-9][a-z0-9-]*)")
 ALLOWED_PLUGIN_REF_SOURCES = {
     "claude-plugins-official",
@@ -196,6 +198,37 @@ def has_git_marker(path: Path) -> bool:
     return (path / ".git").exists()
 
 
+def git_marker_kind(path: Path) -> str:
+    marker = path / ".git"
+    if marker.is_dir():
+        return "dir"
+    if marker.is_file():
+        try:
+            text = marker.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            text = ""
+        if "modules" in text:
+            return "file-submodule"
+        return "file-worktree"
+    return "none"
+
+
+def count_git_markers(path: Path) -> int:
+    if has_git_marker(path):
+        return 1
+    if not path.is_dir():
+        return 0
+    total = 0
+    for root, dirs, _files in os.walk(path, followlinks=False):
+        root_path = Path(root)
+        if has_git_marker(root_path):
+            total += 1
+            dirs[:] = []
+            continue
+        dirs[:] = [d for d in dirs if d not in PRUNE_DIRS]
+    return total
+
+
 def iter_git_roots(source: Path, max_depth: int) -> Iterable[Path]:
     for root, dirs, files in os.walk(source, followlinks=False):
         root_path = Path(root)
@@ -209,6 +242,31 @@ def iter_git_roots(source: Path, max_depth: int) -> Iterable[Path]:
 
         if has_git_marker(root_path):
             yield root_path
+
+
+def depth_limit_skipped_git_count(source: Path, max_depth: int) -> int:
+    skipped = 0
+    for root, dirs, _files in os.walk(source, followlinks=False):
+        root_path = Path(root)
+        current_depth = depth_from(source, root_path)
+        dirs[:] = sorted(d for d in dirs if d not in PRUNE_DIRS)
+        if current_depth >= max_depth:
+            for dirname in dirs:
+                skipped += count_git_markers(root_path / dirname)
+            dirs[:] = []
+    return skipped
+
+
+def depth_limit_pruned_dir_count(source: Path, max_depth: int) -> int:
+    pruned = 0
+    for root, dirs, _files in os.walk(source, followlinks=False):
+        root_path = Path(root)
+        current_depth = depth_from(source, root_path)
+        dirs[:] = sorted(d for d in dirs if d not in PRUNE_DIRS)
+        if current_depth >= max_depth:
+            pruned += len(dirs)
+            dirs[:] = []
+    return pruned
 
 
 def exists(path: Path) -> bool:
@@ -273,6 +331,7 @@ def resolve_import(repo: Path, source: Path, import_path: str) -> ResolvedImport
 
 def import_stats(repo: Path, audit_detail: bool = False) -> dict[str, object]:
     total = 0
+    inline_refs = 0
     home = 0
     external = 0
     unsafe_external = 0
@@ -286,15 +345,29 @@ def import_stats(repo: Path, audit_detail: bool = False) -> dict[str, object]:
             unreadable_paths.append(str(source))
             continue
         in_fence = False
+        fence_marker = ""
         for line in lines:
             stripped = line.strip()
-            if stripped.startswith("```") or stripped.startswith("~~~"):
-                in_fence = not in_fence
+            fence_match = re.match(r"^\s*(```+|~~~+)", line)
+            if fence_match:
+                marker = fence_match.group(1)
+                if not in_fence:
+                    in_fence = True
+                    fence_marker = marker[:3]
+                    remainder = line[fence_match.end() :]
+                    if fence_marker in remainder:
+                        in_fence = False
+                        fence_marker = ""
+                elif marker.startswith(fence_marker):
+                    in_fence = False
+                    fence_marker = ""
                 continue
             if in_fence:
                 continue
-            match = IMPORT_RE.match(line)
+            match = DIRECTIVE_IMPORT_RE.match(line)
             if not match:
+                if INLINE_REF_RE.search(line):
+                    inline_refs += 1
                 continue
             import_path = match.group("path").rstrip(".,);]")
             resolved = resolve_import(repo, source, import_path)
@@ -326,6 +399,7 @@ def import_stats(repo: Path, audit_detail: bool = False) -> dict[str, object]:
                 )
     stats = {
         "total": total,
+        "inline_refs": inline_refs,
         "home": home,
         "external": external,
         "unsafe_external": unsafe_external,
@@ -581,6 +655,28 @@ def ecosystem_from_signals(signals: Iterable[str], provider: str) -> str:
     return "unknown"
 
 
+def agents_md_appears_generated(path: Path) -> bool:
+    if not path.is_file():
+        return False
+    try:
+        lines = path.read_text(encoding="utf-8", errors="replace").splitlines()[:200]
+    except OSError:
+        return False
+    joined = "\n".join(lines).lower()
+    if any(marker in joined for marker in ("generated by", "do not edit", "auto-generated", "<!-- generated")):
+        return True
+    heading_run = 0
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith("## "):
+            heading_run += 1
+            if heading_run >= 3:
+                return True
+        elif stripped:
+            heading_run = 0
+    return False
+
+
 def artifact_row(
     artifact_type: str,
     name: str,
@@ -795,6 +891,31 @@ def plugin_decision_flags(
     return sorted(flags)
 
 
+def destination_path_relation(source: Path, destination: Path | None) -> str:
+    if destination is None:
+        return ""
+    try:
+        source_resolved = source.resolve()
+        destination_resolved = destination.resolve()
+    except RuntimeError:
+        return "symlink-related"
+    if source_resolved == destination_resolved:
+        return "identical"
+    try:
+        source_resolved.relative_to(destination_resolved)
+        return "source-inside-destination"
+    except ValueError:
+        pass
+    try:
+        destination_resolved.relative_to(source_resolved)
+        return "destination-inside-source"
+    except ValueError:
+        pass
+    if source.absolute() == destination.absolute():
+        return "symlink-related"
+    return "disjoint"
+
+
 def guided_auto_plan(
     source: Path,
     destination: Path | None,
@@ -804,6 +925,7 @@ def guided_auto_plan(
     child_rows = [row for row in rows if row.get("path") != "."]
     operation_mode = "migrate-full-workspace" if destination else "setup-in-place"
     target_posture = "codex-native" if destination else "dual-run-current-workspace"
+    destination_relation = destination_path_relation(source, destination) if destination else ""
 
     root_has_policy = bool(
         root_row
@@ -817,6 +939,10 @@ def guided_auto_plan(
         "confirm-target-posture",
         "confirm-child-repo-plan",
     }
+    if root_row and root_row.get("has_AGENTS"):
+        confirmations.add("confirm-agents-trust-mode")
+    if destination_relation and destination_relation != "disjoint":
+        confirmations.add("destination-overlap")
     blocked_auto_actions = {
         "private-or-local-memory",
         "runtime-permissions",
@@ -863,6 +989,7 @@ def guided_auto_plan(
         "parent_policy_mode_default": "inherit-parent" if root_has_policy and child_rows else "isolated",
         "child_repo_selection_default": "selected" if child_rows else "all",
         "child_repo_count": len(child_rows),
+        "destination_path_relation": destination_relation,
         "recommended_root_actions": recommended_root_actions,
         "recommended_action_counts": recommended_child_actions,
         "user_confirmations_required": sorted(confirmations),
@@ -909,6 +1036,8 @@ def list_signals(repo: Path, rel_path: str, destination_repo: Path | None) -> li
         signals.append("claude-rules")
     if imports["total"]:
         signals.append("claude-imports")
+    if imports["inline_refs"]:
+        signals.append("claude-inline-refs")
     if imports["home"]:
         signals.append("claude-home-imports")
     if imports["external"]:
@@ -921,6 +1050,8 @@ def list_signals(repo: Path, rel_path: str, destination_repo: Path | None) -> li
         signals.append("unreadable-markdown-source")
     if exists(repo / "AGENTS.md"):
         signals.append("agents-md")
+        if agents_md_appears_generated(repo / "AGENTS.md"):
+            signals.append("agents-md-appears-generated")
     if exists(repo / "AGENTS.override.md"):
         signals.append("agents-override-md")
     if (agents_size and agents_size > DEFAULT_CODEX_DOC_MAX_BYTES) or (
@@ -987,6 +1118,8 @@ def suggest_action(signals: list[str]) -> str:
         return "exclude-candidate"
     if "codex-doc-size-risk" in signal_set:
         return "review-size-risk"
+    if "git-marker-file-submodule" in signal_set:
+        return "include-copy-only"
     if {"claude-native-repo", "claude-config-repo"} & signal_set:
         return "defer-claude-native"
     if {"claude-local-md", "claude-home-imports", "claude-external-imports"} & signal_set:
@@ -1022,9 +1155,16 @@ def inventory_row(
     *,
     has_git: bool,
     audit_detail: bool = False,
+    depth_limit_skipped: int = 0,
+    depth_limit_pruned: int = 0,
     extra_signals: Iterable[str] = (),
 ) -> dict[str, object]:
     signals = list_signals(repo, rel, destination_repo)
+    marker_kind = git_marker_kind(repo) if has_git else "none"
+    if marker_kind != "none":
+        signals.append(f"git-marker-{marker_kind}")
+    if depth_limit_skipped or depth_limit_pruned:
+        signals.append("depth-limit-reached")
     for signal in extra_signals:
         if signal not in signals:
             signals.append(signal)
@@ -1039,6 +1179,7 @@ def inventory_row(
         "source": str(repo),
         "destination": str(destination_repo) if destination_repo else None,
         "has_git": has_git,
+        "git_marker_kind": marker_kind,
         "has_CLAUDE": exists(repo / "CLAUDE.md"),
         "has_claude_project_md": exists(repo / ".claude" / "CLAUDE.md"),
         "has_CLAUDE_local": exists(repo / "CLAUDE.local.md"),
@@ -1048,11 +1189,14 @@ def inventory_row(
         "has_claude_dir": (repo / ".claude").is_dir(),
         "claude_rules_count": count_files(repo / ".claude" / "rules", "*.md"),
         "claude_imports_count": imports["total"],
+        "claude_inline_refs_count": imports["inline_refs"],
         "claude_home_imports_count": imports["home"],
         "claude_external_imports_count": imports["external"],
         "unsafe_external_imports_count": imports["unsafe_external"],
         "claude_unresolved_imports_count": imports["unresolved"],
         "unreadable_markdown_sources_count": imports["unreadable"],
+        "depth_limit_skipped_git_count": depth_limit_skipped,
+        "depth_limit_pruned_dir_count": depth_limit_pruned,
         "unreadable_markdown_source_paths": imports["unreadable_paths"],
         "claude_settings_keys": sorted(claude_settings_keys),
         "is_claude_native_repo": (
@@ -1082,6 +1226,8 @@ def inventory(
     rows: list[dict[str, object]] = []
     seen: set[Path] = set()
     mappings = plugin_mappings if plugin_mappings is not None else load_plugin_mappings()
+    skipped_by_depth = depth_limit_skipped_git_count(source, max_depth)
+    pruned_by_depth = depth_limit_pruned_dir_count(source, max_depth)
 
     if not has_git_marker(source) and has_context_root_markers(source):
         destination_repo = destination if destination is not None else None
@@ -1094,7 +1240,25 @@ def inventory(
                 mappings,
                 has_git=False,
                 audit_detail=audit_detail,
+                depth_limit_skipped=skipped_by_depth,
+                depth_limit_pruned=pruned_by_depth,
                 extra_signals=("non-git-context-root",),
+            )
+        )
+        seen.add(source)
+    elif not has_git_marker(source) and (skipped_by_depth or pruned_by_depth):
+        rows.append(
+            inventory_row(
+                source,
+                ".",
+                destination if destination is not None else None,
+                available_plugins,
+                mappings,
+                has_git=False,
+                audit_detail=audit_detail,
+                depth_limit_skipped=skipped_by_depth,
+                depth_limit_pruned=pruned_by_depth,
+                extra_signals=("depth-limit-root",),
             )
         )
         seen.add(source)
@@ -1118,6 +1282,8 @@ def inventory(
                 mappings,
                 has_git=True,
                 audit_detail=audit_detail,
+                depth_limit_skipped=skipped_by_depth if repo == source else 0,
+                depth_limit_pruned=pruned_by_depth if repo == source else 0,
             )
         )
 
@@ -1135,6 +1301,7 @@ def print_markdown(rows: list[dict[str, object]]) -> None:
     headers = [
         "path",
         "has_git",
+        "git_marker_kind",
         "has_CLAUDE",
         "has_claude_project_md",
         "has_CLAUDE_local",
@@ -1144,9 +1311,12 @@ def print_markdown(rows: list[dict[str, object]]) -> None:
         "has_claude_dir",
         "claude_rules_count",
         "claude_imports_count",
+        "claude_inline_refs_count",
         "unsafe_external_imports_count",
         "claude_unresolved_imports_count",
         "unreadable_markdown_sources_count",
+        "depth_limit_skipped_git_count",
+        "depth_limit_pruned_dir_count",
         "is_claude_native_repo",
         "agents_size_bytes",
         "agents_override_size_bytes",
@@ -1170,8 +1340,10 @@ def print_markdown(rows: list[dict[str, object]]) -> None:
             values.append(markdown_escape(value))
         print("| " + " | ".join(values) + " |")
     total_unreadable = sum(int(row.get("unreadable_markdown_sources_count") or 0) for row in rows)
+    total_depth_skipped = sum(int(row.get("depth_limit_skipped_git_count") or 0) for row in rows)
     print()
     print(f"Total unreadable markdown sources: {total_unreadable}")
+    print(f"Total skipped git candidates at depth limit: {total_depth_skipped}")
 
 
 def artifact_summary_rows(rows: list[dict[str, object]]) -> list[dict[str, object]]:
@@ -1256,6 +1428,7 @@ def print_guided_auto_plan(plan: dict[str, object]) -> None:
         "parent_policy_mode_default",
         "child_repo_selection_default",
         "child_repo_count",
+        "destination_path_relation",
         "recommended_root_actions",
         "recommended_action_counts",
         "user_confirmations_required",
