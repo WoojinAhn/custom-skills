@@ -36,6 +36,12 @@ python3 codex-context-migration/scripts/inventory.py \
   --format markdown
 ```
 
+Inventory smoke tests require `pytest`:
+
+```bash
+python3 -m pytest codex-context-migration/scripts/tests
+```
+
 Typical flow:
 
 1. Ask your agent to use `codex-context-migration` and provide the workspace
