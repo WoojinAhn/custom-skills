@@ -71,6 +71,7 @@ CLAUDE_NATIVE_QUALIFIERS = {
 }
 
 DEFAULT_CODEX_DOC_MAX_BYTES = 32768
+DEFAULT_MAX_SOURCE_BYTES = 1024 * 1024
 CONTEXT_ROOT_MARKERS = ("SKILL.md", "CLAUDE.md", "AGENTS.md", ".claude", ".mcp.json")
 
 DIRECTIVE_IMPORT_RE = re.compile(
@@ -154,6 +155,12 @@ def parse_args() -> argparse.Namespace:
         "--audit-detail",
         action="store_true",
         help="Include per-import audit detail in JSON rows.",
+    )
+    parser.add_argument(
+        "--max-source-bytes",
+        type=int,
+        default=DEFAULT_MAX_SOURCE_BYTES,
+        help="Maximum markdown source size to parse for import/plugin signals. Default: 1048576.",
     )
     parser.add_argument(
         "--guided-auto-plan",
@@ -329,7 +336,11 @@ def resolve_import(repo: Path, source: Path, import_path: str) -> ResolvedImport
     return ResolvedImport(normalized, "repo", safe_to_stat=True)
 
 
-def import_stats(repo: Path, audit_detail: bool = False) -> dict[str, object]:
+def import_stats(
+    repo: Path,
+    audit_detail: bool = False,
+    max_source_bytes: int = DEFAULT_MAX_SOURCE_BYTES,
+) -> dict[str, object]:
     total = 0
     inline_refs = 0
     home = 0
@@ -337,8 +348,17 @@ def import_stats(repo: Path, audit_detail: bool = False) -> dict[str, object]:
     unsafe_external = 0
     unresolved = 0
     unreadable_paths: list[str] = []
+    skipped_oversized_paths: list[str] = []
     import_details: list[dict[str, object]] = []
     for source in iter_claude_markdown_sources(repo):
+        try:
+            source_size = source.stat().st_size
+        except OSError:
+            unreadable_paths.append(str(source))
+            continue
+        if source_size > max_source_bytes:
+            skipped_oversized_paths.append(str(source))
+            continue
         try:
             lines = source.read_text(encoding="utf-8", errors="replace").splitlines()
         except OSError:
@@ -405,7 +425,9 @@ def import_stats(repo: Path, audit_detail: bool = False) -> dict[str, object]:
         "unsafe_external": unsafe_external,
         "unresolved": unresolved,
         "unreadable": len(unreadable_paths),
+        "skipped_oversized_count": len(skipped_oversized_paths),
         "unreadable_paths": unreadable_paths,
+        "skipped_oversized_paths": skipped_oversized_paths,
     }
     if audit_detail:
         stats["imports"] = import_details
@@ -516,7 +538,10 @@ def plugin_refs_from_text(text: str) -> set[str]:
     return refs
 
 
-def detected_plugin_refs(repo: Path) -> list[str]:
+def detected_plugin_refs(
+    repo: Path,
+    max_source_bytes: int = DEFAULT_MAX_SOURCE_BYTES,
+) -> list[str]:
     refs: set[str] = set()
 
     for settings_file in iter_claude_settings_sources(repo):
@@ -526,6 +551,8 @@ def detected_plugin_refs(repo: Path) -> list[str]:
 
     for source in iter_claude_markdown_sources(repo):
         try:
+            if source.stat().st_size > max_source_bytes:
+                continue
             refs.update(plugin_refs_from_text(source.read_text(encoding="utf-8", errors="replace")))
         except OSError:
             continue
@@ -1018,12 +1045,17 @@ def looks_claude_native(rel_path: str, repo: Path) -> bool:
     return False
 
 
-def list_signals(repo: Path, rel_path: str, destination_repo: Path | None) -> list[str]:
+def list_signals(
+    repo: Path,
+    rel_path: str,
+    destination_repo: Path | None,
+    max_source_bytes: int = DEFAULT_MAX_SOURCE_BYTES,
+) -> list[str]:
     signals: list[str] = []
     claude_dir = repo / ".claude"
     agents_size = file_size(repo / "AGENTS.md")
     agents_override_size = file_size(repo / "AGENTS.override.md")
-    imports = import_stats(repo)
+    imports = import_stats(repo, max_source_bytes=max_source_bytes)
     claude_settings_keys = settings_keys(repo)
 
     if exists(repo / "CLAUDE.md"):
@@ -1048,6 +1080,8 @@ def list_signals(repo: Path, rel_path: str, destination_repo: Path | None) -> li
         signals.append("claude-unresolved-imports")
     if imports["unreadable"]:
         signals.append("unreadable-markdown-source")
+    if imports["skipped_oversized_count"]:
+        signals.append("skipped-oversized-source")
     if exists(repo / "AGENTS.md"):
         signals.append("agents-md")
         if agents_md_appears_generated(repo / "AGENTS.md"):
@@ -1155,11 +1189,17 @@ def inventory_row(
     *,
     has_git: bool,
     audit_detail: bool = False,
+    max_source_bytes: int = DEFAULT_MAX_SOURCE_BYTES,
     depth_limit_skipped: int = 0,
     depth_limit_pruned: int = 0,
     extra_signals: Iterable[str] = (),
 ) -> dict[str, object]:
-    signals = list_signals(repo, rel, destination_repo)
+    signals = list_signals(
+        repo,
+        rel,
+        destination_repo,
+        max_source_bytes=max_source_bytes,
+    )
     marker_kind = git_marker_kind(repo) if has_git else "none"
     if marker_kind != "none":
         signals.append(f"git-marker-{marker_kind}")
@@ -1170,9 +1210,13 @@ def inventory_row(
             signals.append(signal)
     agents_size = file_size(repo / "AGENTS.md")
     agents_override_size = file_size(repo / "AGENTS.override.md")
-    imports = import_stats(repo, audit_detail=audit_detail)
+    imports = import_stats(
+        repo,
+        audit_detail=audit_detail,
+        max_source_bytes=max_source_bytes,
+    )
     claude_settings_keys = settings_keys(repo)
-    plugin_refs = detected_plugin_refs(repo)
+    plugin_refs = detected_plugin_refs(repo, max_source_bytes=max_source_bytes)
     candidates = plugin_candidates(plugin_refs, available_plugins, plugin_mappings)
     row = {
         "path": rel,
@@ -1195,9 +1239,11 @@ def inventory_row(
         "unsafe_external_imports_count": imports["unsafe_external"],
         "claude_unresolved_imports_count": imports["unresolved"],
         "unreadable_markdown_sources_count": imports["unreadable"],
+        "skipped_oversized_count": imports["skipped_oversized_count"],
         "depth_limit_skipped_git_count": depth_limit_skipped,
         "depth_limit_pruned_dir_count": depth_limit_pruned,
         "unreadable_markdown_source_paths": imports["unreadable_paths"],
+        "skipped_oversized_source_paths": imports["skipped_oversized_paths"],
         "claude_settings_keys": sorted(claude_settings_keys),
         "is_claude_native_repo": (
             "claude-native-repo" in signals or "claude-config-repo" in signals
@@ -1222,6 +1268,7 @@ def inventory(
     available_plugins: dict[str, list[str]],
     plugin_mappings: dict[str, list[dict[str, str]]] | None = None,
     audit_detail: bool = False,
+    max_source_bytes: int = DEFAULT_MAX_SOURCE_BYTES,
 ) -> list[dict[str, object]]:
     rows: list[dict[str, object]] = []
     seen: set[Path] = set()
@@ -1240,6 +1287,7 @@ def inventory(
                 mappings,
                 has_git=False,
                 audit_detail=audit_detail,
+                max_source_bytes=max_source_bytes,
                 depth_limit_skipped=skipped_by_depth,
                 depth_limit_pruned=pruned_by_depth,
                 extra_signals=("non-git-context-root",),
@@ -1256,6 +1304,7 @@ def inventory(
                 mappings,
                 has_git=False,
                 audit_detail=audit_detail,
+                max_source_bytes=max_source_bytes,
                 depth_limit_skipped=skipped_by_depth,
                 depth_limit_pruned=pruned_by_depth,
                 extra_signals=("depth-limit-root",),
@@ -1282,6 +1331,7 @@ def inventory(
                 mappings,
                 has_git=True,
                 audit_detail=audit_detail,
+                max_source_bytes=max_source_bytes,
                 depth_limit_skipped=skipped_by_depth if repo == source else 0,
                 depth_limit_pruned=pruned_by_depth if repo == source else 0,
             )
@@ -1315,6 +1365,7 @@ def print_markdown(rows: list[dict[str, object]]) -> None:
         "unsafe_external_imports_count",
         "claude_unresolved_imports_count",
         "unreadable_markdown_sources_count",
+        "skipped_oversized_count",
         "depth_limit_skipped_git_count",
         "depth_limit_pruned_dir_count",
         "is_claude_native_repo",
@@ -1340,9 +1391,11 @@ def print_markdown(rows: list[dict[str, object]]) -> None:
             values.append(markdown_escape(value))
         print("| " + " | ".join(values) + " |")
     total_unreadable = sum(int(row.get("unreadable_markdown_sources_count") or 0) for row in rows)
+    total_oversized = sum(int(row.get("skipped_oversized_count") or 0) for row in rows)
     total_depth_skipped = sum(int(row.get("depth_limit_skipped_git_count") or 0) for row in rows)
     print()
     print(f"Total unreadable markdown sources: {total_unreadable}")
+    print(f"Total skipped oversized markdown sources: {total_oversized}")
     print(f"Total skipped git candidates at depth limit: {total_depth_skipped}")
 
 
@@ -1478,6 +1531,7 @@ def main() -> None:
         available_plugins,
         plugin_mappings,
         audit_detail=args.audit_detail,
+        max_source_bytes=args.max_source_bytes,
     )
     artifacts = (
         inventory_artifacts(artifact_roots(codex_home, args.artifact_scope, args.artifact_root))
