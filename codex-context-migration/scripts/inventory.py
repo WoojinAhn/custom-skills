@@ -95,54 +95,7 @@ JSON_PLUGIN_CONTEXT_KEYS = (
     "source",
     "provider",
 )
-
-PLUGIN_MAPPINGS = {
-    "frontend-design@claude-plugins-official": [
-        {
-            "candidate": "build-web-apps@openai-curated",
-            "confidence": "mapped",
-            "note": "Prefer Codex official web-app workflow before retaining Claude frontend-design.",
-        }
-    ],
-    "superpowers@claude-plugins-official": [
-        {
-            "candidate": "superpowers@openai-curated",
-            "confidence": "same-name",
-            "note": "Same name still requires behavior and trigger comparison.",
-        }
-    ],
-    "playwright@claude-plugins-official": [
-        {
-            "candidate": "browser@openai-bundled",
-            "confidence": "mapped",
-            "note": "Pair with Codex MCP Playwright review when browser automation is needed.",
-        },
-        {
-            "candidate": "mcp-playwright@codex-mcp",
-            "confidence": "research",
-            "note": "Check Codex MCP registration; not a plugin marketplace entry.",
-        },
-    ],
-    "mcp-server-dev@claude-plugins-official": [
-        {
-            "candidate": "openai-developers@openai-curated",
-            "confidence": "research",
-            "note": "No guaranteed one-to-one equivalent; inspect available OpenAI developer tooling.",
-        },
-        {
-            "candidate": "plugin-eval@openai-curated",
-            "confidence": "research",
-            "note": "Evaluate only if the task is plugin/server evaluation rather than MCP server authoring.",
-        },
-    ],
-    "cc@sendbird": [
-        {
-            "candidate": "",
-            "confidence": "third-party-exception",
-            "note": "Reverse bridge candidate; retain only with explicit user reason.",
-        }
-    ],
-}
+PLUGIN_MAPPINGS_PATH = Path(__file__).resolve().parents[1] / "references" / "plugin-mappings.json"
 
 
 @dataclass(frozen=True)
@@ -189,6 +142,16 @@ def parse_args() -> argparse.Namespace:
         "--include-artifacts",
         action="store_true",
         help="Also inventory Codex/Claude plugin, skill, command, hook, agent, and marketplace artifacts.",
+    )
+    parser.add_argument(
+        "--artifact-output",
+        choices=("summary", "detail"),
+        help="Artifact markdown output mode. Default: summary for markdown, detail for JSON.",
+    )
+    parser.add_argument(
+        "--audit-detail",
+        action="store_true",
+        help="Include per-import audit detail in JSON rows.",
     )
     parser.add_argument(
         "--guided-auto-plan",
@@ -308,13 +271,14 @@ def resolve_import(repo: Path, source: Path, import_path: str) -> ResolvedImport
     return ResolvedImport(normalized, "repo", safe_to_stat=True)
 
 
-def import_stats(repo: Path) -> dict[str, object]:
+def import_stats(repo: Path, audit_detail: bool = False) -> dict[str, object]:
     total = 0
     home = 0
     external = 0
     unsafe_external = 0
     unresolved = 0
     unreadable_paths: list[str] = []
+    import_details: list[dict[str, object]] = []
     for source in iter_claude_markdown_sources(repo):
         try:
             lines = source.read_text(encoding="utf-8", errors="replace").splitlines()
@@ -341,9 +305,26 @@ def import_stats(repo: Path) -> dict[str, object]:
                 unsafe_external += 1
             if resolved.kind == "external":
                 external += 1
-            if resolved.safe_to_stat and not resolved.path.exists():
+            resolved_exists = resolved.path.exists() if resolved.safe_to_stat else None
+            if resolved.safe_to_stat and not resolved_exists:
                 unresolved += 1
-    return {
+            if audit_detail:
+                if resolved.safe_to_stat:
+                    detail_exists = resolved_exists
+                elif resolved.kind == "home":
+                    detail_exists = False
+                else:
+                    detail_exists = None
+                import_details.append(
+                    {
+                        "source_file": source.relative_to(repo).as_posix(),
+                        "raw": stripped,
+                        "resolved": str(resolved.path),
+                        "kind": resolved.kind,
+                        "exists": detail_exists,
+                    }
+                )
+    stats = {
         "total": total,
         "home": home,
         "external": external,
@@ -352,6 +333,9 @@ def import_stats(repo: Path) -> dict[str, object]:
         "unreadable": len(unreadable_paths),
         "unreadable_paths": unreadable_paths,
     }
+    if audit_detail:
+        stats["imports"] = import_details
+    return stats
 
 
 def read_json_file(path: Path) -> object | None:
@@ -359,6 +343,30 @@ def read_json_file(path: Path) -> object | None:
         return json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return None
+
+
+def load_plugin_mappings(path: Path = PLUGIN_MAPPINGS_PATH) -> dict[str, list[dict[str, str]]]:
+    data = read_json_file(path)
+    if not isinstance(data, dict):
+        return {}
+    mappings: dict[str, list[dict[str, str]]] = {}
+    for ref, entries in data.items():
+        if ref == "_schema" or not isinstance(ref, str) or not isinstance(entries, list):
+            continue
+        normalized_entries: list[dict[str, str]] = []
+        for entry in entries:
+            if not isinstance(entry, dict):
+                continue
+            normalized_entries.append(
+                {
+                    "candidate": str(entry.get("candidate") or ""),
+                    "confidence": str(entry.get("confidence") or "unknown"),
+                    "note": str(entry.get("note") or ""),
+                }
+            )
+        if normalized_entries:
+            mappings[ref] = normalized_entries
+    return mappings
 
 
 def settings_keys(repo: Path) -> set[str]:
@@ -547,6 +555,21 @@ def version_from_path(path: Path, name: str) -> str:
     return ""
 
 
+def source_class_from_path(path: Path) -> str:
+    parts = path.parts
+    if "vendor_imports" in parts or "vendored" in parts:
+        return "vendor"
+    if "cache" in parts:
+        return "cache"
+    if "skills" in parts:
+        index = len(parts) - 1 - list(reversed(parts)).index("skills")
+        if index + 1 < len(parts):
+            if parts[index + 1] == ".system":
+                return "system"
+            return "user"
+    return "unknown"
+
+
 def ecosystem_from_signals(signals: Iterable[str], provider: str) -> str:
     signal_set = set(signals)
     if "has-codex-manifest" in signal_set and "has-claude-manifest" in signal_set:
@@ -573,6 +596,7 @@ def artifact_row(
         "ecosystem": effective_ecosystem,
         "scanned_manifest_type": scanned_manifest_type,
         "effective_ecosystem": effective_ecosystem,
+        "source_class": source_class_from_path(source_path),
         "provider": provider,
         "name": name,
         "version": version_from_path(source_path, name) or "unknown",
@@ -721,11 +745,14 @@ def candidate_status(candidate_ref: str, available_plugins: dict[str, list[str]]
 
 
 def plugin_candidates(
-    refs: Iterable[str], available_plugins: dict[str, list[str]]
+    refs: Iterable[str],
+    available_plugins: dict[str, list[str]],
+    plugin_mappings: dict[str, list[dict[str, str]]] | None = None,
 ) -> list[dict[str, object]]:
     candidates: list[dict[str, object]] = []
+    mappings_by_ref = plugin_mappings if plugin_mappings is not None else load_plugin_mappings()
     for ref in sorted(refs):
-        mappings = PLUGIN_MAPPINGS.get(ref)
+        mappings = mappings_by_ref.get(ref)
         if not mappings and ref.endswith("@claude-plugins-official"):
             mappings = [
                 {
@@ -991,8 +1018,10 @@ def inventory_row(
     rel: str,
     destination_repo: Path | None,
     available_plugins: dict[str, list[str]],
+    plugin_mappings: dict[str, list[dict[str, str]]],
     *,
     has_git: bool,
+    audit_detail: bool = False,
     extra_signals: Iterable[str] = (),
 ) -> dict[str, object]:
     signals = list_signals(repo, rel, destination_repo)
@@ -1001,11 +1030,11 @@ def inventory_row(
             signals.append(signal)
     agents_size = file_size(repo / "AGENTS.md")
     agents_override_size = file_size(repo / "AGENTS.override.md")
-    imports = import_stats(repo)
+    imports = import_stats(repo, audit_detail=audit_detail)
     claude_settings_keys = settings_keys(repo)
     plugin_refs = detected_plugin_refs(repo)
-    candidates = plugin_candidates(plugin_refs, available_plugins)
-    return {
+    candidates = plugin_candidates(plugin_refs, available_plugins, plugin_mappings)
+    row = {
         "path": rel,
         "source": str(repo),
         "destination": str(destination_repo) if destination_repo else None,
@@ -1037,6 +1066,9 @@ def inventory_row(
         "signals": signals,
         "suggested_action": suggest_action(signals),
     }
+    if audit_detail:
+        row["claude_imports_detail"] = imports.get("imports", [])
+    return row
 
 
 def inventory(
@@ -1044,9 +1076,12 @@ def inventory(
     destination: Path | None,
     max_depth: int,
     available_plugins: dict[str, list[str]],
+    plugin_mappings: dict[str, list[dict[str, str]]] | None = None,
+    audit_detail: bool = False,
 ) -> list[dict[str, object]]:
     rows: list[dict[str, object]] = []
     seen: set[Path] = set()
+    mappings = plugin_mappings if plugin_mappings is not None else load_plugin_mappings()
 
     if not has_git_marker(source) and has_context_root_markers(source):
         destination_repo = destination if destination is not None else None
@@ -1056,7 +1091,9 @@ def inventory(
                 ".",
                 destination_repo,
                 available_plugins,
+                mappings,
                 has_git=False,
+                audit_detail=audit_detail,
                 extra_signals=("non-git-context-root",),
             )
         )
@@ -1078,7 +1115,9 @@ def inventory(
                 rel,
                 destination_repo,
                 available_plugins,
+                mappings,
                 has_git=True,
+                audit_detail=audit_detail,
             )
         )
 
@@ -1130,15 +1169,57 @@ def print_markdown(rows: list[dict[str, object]]) -> None:
                 value = ", ".join(value)
             values.append(markdown_escape(value))
         print("| " + " | ".join(values) + " |")
+    total_unreadable = sum(int(row.get("unreadable_markdown_sources_count") or 0) for row in rows)
+    print()
+    print(f"Total unreadable markdown sources: {total_unreadable}")
 
 
-def print_artifact_markdown(rows: list[dict[str, object]]) -> None:
+def artifact_summary_rows(rows: list[dict[str, object]]) -> list[dict[str, object]]:
+    counts: dict[tuple[str, str, str], int] = {}
+    for row in rows:
+        key = (
+            str(row.get("artifact_type") or ""),
+            str(row.get("effective_ecosystem") or row.get("ecosystem") or ""),
+            str(row.get("provider") or ""),
+        )
+        counts[key] = counts.get(key, 0) + 1
+    return [
+        {
+            "artifact_type": artifact_type,
+            "effective_ecosystem": ecosystem,
+            "provider": provider,
+            "count": count,
+        }
+        for (artifact_type, ecosystem, provider), count in sorted(counts.items())
+    ]
+
+
+def print_artifact_markdown(rows: list[dict[str, object]], output: str = "detail") -> None:
     if not rows:
         return
+    if output == "summary":
+        headers = [
+            "artifact_type",
+            "effective_ecosystem",
+            "provider",
+            "count",
+        ]
+        summary_rows = artifact_summary_rows(rows)
+        print()
+        print("## Ecosystem Artifacts Summary")
+        print()
+        print("| " + " | ".join(headers) + " |")
+        print("| " + " | ".join("---" for _ in headers) + " |")
+        for row in summary_rows:
+            values = [markdown_escape(row[header]) for header in headers]
+            print("| " + " | ".join(values) + " |")
+        return
+
     headers = [
         "artifact_type",
         "scanned_manifest_type",
         "effective_ecosystem",
+        "source_class",
         "provider",
         "name",
         "version",
@@ -1216,12 +1297,22 @@ def main() -> None:
     codex_home = resolve_dir(args.codex_home, "--codex-home", must_exist=False)
 
     available_plugins = discover_codex_plugins(codex_home)
-    rows = inventory(source, destination, args.max_depth, available_plugins)
+    plugin_mappings = load_plugin_mappings()
+    rows = inventory(
+        source,
+        destination,
+        args.max_depth,
+        available_plugins,
+        plugin_mappings,
+        audit_detail=args.audit_detail,
+    )
     artifacts = (
         inventory_artifacts(artifact_roots(codex_home, args.artifact_scope, args.artifact_root))
         if args.include_artifacts
         else []
     )
+    artifact_output = args.artifact_output or ("detail" if args.format == "json" else "summary")
+    artifact_payload = artifact_summary_rows(artifacts) if artifact_output == "summary" else artifacts
     plan = guided_auto_plan(source, destination, rows) if args.guided_auto_plan else {}
     if args.format == "json":
         if args.include_artifacts or args.guided_auto_plan:
@@ -1230,7 +1321,7 @@ def main() -> None:
                     {
                         "guided_auto_plan": plan,
                         "repos": rows,
-                        "artifacts": artifacts,
+                        "artifacts": artifact_payload,
                     },
                     indent=2,
                     ensure_ascii=False,
@@ -1241,7 +1332,7 @@ def main() -> None:
     else:
         print_guided_auto_plan(plan)
         print_markdown(rows)
-        print_artifact_markdown(artifacts)
+        print_artifact_markdown(artifacts, output=artifact_output)
 
 
 if __name__ == "__main__":
