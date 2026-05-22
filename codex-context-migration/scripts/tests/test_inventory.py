@@ -222,6 +222,21 @@ def test_depth_limit_reports_skipped_git_candidates(tmp_path):
     assert rows[0]["depth_limit_skipped_git_count"] == 1
     assert rows[0]["depth_limit_pruned_dir_count"] == 1
     assert "depth-limit-reached" in rows[0]["signals"]
+    assert "depth-limit-pruned-dirs" in rows[0]["signals"]
+
+
+def test_depth_limit_pruned_dirs_signal_does_not_claim_skipped_repo(tmp_path):
+    root = tmp_path / "workspace"
+    child = root / "level1" / "level2"
+    child.mkdir(parents=True)
+    (root / "AGENTS.md").write_text("Workspace policy.\n", encoding="utf-8")
+
+    rows = inventory.inventory(root, None, max_depth=1, available_plugins={})
+
+    assert rows[0]["depth_limit_skipped_git_count"] == 0
+    assert rows[0]["depth_limit_pruned_dir_count"] == 1
+    assert "depth-limit-pruned-dirs" in rows[0]["signals"]
+    assert "depth-limit-reached" not in rows[0]["signals"]
 
 
 def test_resolve_import_unsafe_external_signal(tmp_path):

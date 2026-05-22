@@ -1203,8 +1203,10 @@ def inventory_row(
     marker_kind = git_marker_kind(repo) if has_git else "none"
     if marker_kind != "none":
         signals.append(f"git-marker-{marker_kind}")
-    if depth_limit_skipped or depth_limit_pruned:
+    if depth_limit_skipped:
         signals.append("depth-limit-reached")
+    if depth_limit_pruned:
+        signals.append("depth-limit-pruned-dirs")
     for signal in extra_signals:
         if signal not in signals:
             signals.append(signal)
