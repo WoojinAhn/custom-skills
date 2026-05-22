@@ -75,6 +75,24 @@ IMPORT_RE = re.compile(
     r"""^\s*(?:[-*+]\s*)?@(?P<path>(?:~|/|\.{1,2}/)?[A-Za-z0-9_.\-/]+)"""
 )
 PLUGIN_REF_RE = re.compile(r"(?P<name>[a-z0-9][a-z0-9-]*)@(?P<source>[a-z0-9][a-z0-9-]*)")
+ALLOWED_PLUGIN_REF_SOURCES = {
+    "claude-plugins-official",
+    "openai-curated",
+    "openai-bundled",
+    "openai-primary-runtime",
+    "openai-codex",
+    "sendbird",
+    "codex-mcp",
+}
+JSON_PLUGIN_CONTEXT_KEYS = (
+    "plugins",
+    "enabledplugins",
+    "disabledplugins",
+    "marketplace",
+    "marketplaces",
+    "source",
+    "provider",
+)
 
 PLUGIN_MAPPINGS = {
     "frontend-design@claude-plugins-official": [
@@ -214,7 +232,7 @@ def iter_git_roots(source: Path, max_depth: int) -> Iterable[Path]:
             if d not in PRUNE_DIRS and current_depth < max_depth
         )
 
-        if ".git" in dirs or ".git" in files or has_git_marker(root_path):
+        if has_git_marker(root_path):
             yield root_path
 
 
@@ -345,17 +363,25 @@ def iter_claude_settings_sources(repo: Path) -> Iterable[Path]:
                 yield candidate
 
 
-def collect_plugin_refs_from_json(value: object) -> set[str]:
+def is_plugin_json_context_key(key: str) -> bool:
+    normalized = key.lower()
+    return any(token in normalized for token in JSON_PLUGIN_CONTEXT_KEYS)
+
+
+def collect_plugin_refs_from_json(value: object, in_plugin_context: bool = False) -> set[str]:
     refs: set[str] = set()
     if isinstance(value, dict):
         for key, item in value.items():
-            if isinstance(key, str):
+            key_in_plugin_context = in_plugin_context or (
+                isinstance(key, str) and is_plugin_json_context_key(key)
+            )
+            if key_in_plugin_context and isinstance(key, str):
                 refs.update(plugin_refs_from_text(key))
-            refs.update(collect_plugin_refs_from_json(item))
+            refs.update(collect_plugin_refs_from_json(item, key_in_plugin_context))
     elif isinstance(value, list):
         for item in value:
-            refs.update(collect_plugin_refs_from_json(item))
-    elif isinstance(value, str):
+            refs.update(collect_plugin_refs_from_json(item, in_plugin_context))
+    elif in_plugin_context and isinstance(value, str):
         refs.update(plugin_refs_from_text(value))
     return refs
 
@@ -365,6 +391,8 @@ def plugin_refs_from_text(text: str) -> set[str]:
     for match in PLUGIN_REF_RE.finditer(text):
         name = match.group("name")
         source = match.group("source")
+        if source not in ALLOWED_PLUGIN_REF_SOURCES:
+            continue
         refs.add(f"{name}@{source}")
     return refs
 
@@ -728,11 +756,18 @@ def guided_auto_plan(
         "third-party-bridges",
         "claude-plugin-retention",
     }
+    recommended_root_actions: dict[str, int] = {}
     recommended_child_actions: dict[str, int] = {}
 
-    for row in rows:
+    if root_row:
+        root_action = str(root_row.get("suggested_action") or "review-needed")
+        recommended_root_actions[root_action] = 1
+
+    for row in child_rows:
         action = str(row.get("suggested_action") or "review-needed")
         recommended_child_actions[action] = recommended_child_actions.get(action, 0) + 1
+
+    for row in rows:
         signals = set(row.get("signals") or [])
         if {"claude-local-md", "claude-home-imports", "claude-external-imports"} & signals:
             confirmations.add("confirm-private-context-disposition")
@@ -759,6 +794,7 @@ def guided_auto_plan(
         "parent_policy_mode_default": "inherit-parent" if root_has_policy and child_rows else "isolated",
         "child_repo_selection_default": "selected" if child_rows else "all",
         "child_repo_count": len(child_rows),
+        "recommended_root_actions": recommended_root_actions,
         "recommended_action_counts": recommended_child_actions,
         "user_confirmations_required": sorted(confirmations),
         "blocked_auto_actions": sorted(blocked_auto_actions),
@@ -1047,6 +1083,7 @@ def print_guided_auto_plan(plan: dict[str, object]) -> None:
         "parent_policy_mode_default",
         "child_repo_selection_default",
         "child_repo_count",
+        "recommended_root_actions",
         "recommended_action_counts",
         "user_confirmations_required",
         "blocked_auto_actions",
