@@ -21,11 +21,9 @@ ln -s <repo-path>/<skill-name> ~/.codex/skills/<skill-name>
 
 ## 대표 스킬
 
-[`codex-context-migration`](codex-context-migration/SKILL.md)이 이 repo에서
-공개용으로 가장 신경 쓴 핵심 스킬입니다. `CLAUDE.md`를 단순 rename하지 않고,
-Claude-era workspace/repository context를 Codex `AGENTS.md`로 audit-first
-이관하는 흐름을 다룹니다. Claude runtime mechanics를 always-loaded instruction에
-그대로 dump하지 않는 것도 중요한 목표입니다.
+[`codex-context-migration`](codex-context-migration/README.md)이 이 repo에서
+공개용으로 가장 신경 쓴 핵심 스킬입니다. 상세 README는 스킬 디렉터리 안에 있고,
+quick start, diagram, operation mode, before/after 예시를 거기에 둡니다.
 
 Quick inventory:
 
@@ -37,107 +35,19 @@ python3 codex-context-migration/scripts/inventory.py \
   --format markdown
 ```
 
-일반적인 흐름:
-
-1. agent에게 `codex-context-migration`을 사용하라고 요청하고 workspace root를
-   알려줍니다.
-2. 세부 migration label을 처음부터 전부 고르고 싶지 않다면 `guided-auto`를
-   요청합니다. agent가 inventory 기반으로 보수적인 기본 계획을 만들고, 위험한
-   선택지만 확인합니다.
-3. `guided-auto`가 초안을 이미 만든 경우가 아니라면, agent가 먼저 어떤 작업을
-   원하는지 묻습니다.
-   - 현재 workspace에 Codex를 세팅 (`setup-in-place`)
-   - 전체 workspace를 새 Codex 목적지로 복사 (`migrate-full-workspace`)
-   - 고급 옵션: context/knowledge/config 파일만 복사 (`context-only`)
-4. agent가 inventory helper를 실행하고, 하위 repo별 include/exclude/defer
-   제안을 만든 뒤 파일 수정 전에 확인을 받습니다.
-5. 확인 후 `AGENTS.md`, audit record를 작성하고 `codex exec`로 instruction
-   loading을 검증합니다.
-
-기본 트리거 워크플로우:
-
-```mermaid
-flowchart TD
-    A[사용자가 codex-context-migration 트리거] --> B{출발지 root를 제공했는가?}
-    B -- 아니오 --> B1[Agent가 출발지 root를 질문]
-    B -- 예 --> C[Agent가 출발지 root 기록]
-    B1 --> C
-
-    C --> D{목적지 root를 제공했는가?}
-    D -- 예 --> E[guided-auto 초안: migrate-full-workspace + codex-native]
-    D -- 아니오 --> F[guided-auto 초안: setup-in-place + dual-run-current-workspace]
-
-    E --> G[guided-auto plan과 read-only inventory 실행]
-    F --> G
-
-    G --> H[감지된 repo, context file, runtime config, MCP, plugin, skill 요약]
-    H --> I[하위 repo별 include / exclude / defer 제안]
-    I --> J[위험한 확인 항목만 표시]
-
-    J --> K{사용자가 확인했는가?}
-    K -- 아니오 --> K1[계획 수정 또는 파일 수정 없이 중단]
-    K -- 예 --> L[승인된 migration 변경 적용]
-
-    L --> M[AGENTS.md, references, audit record 작성]
-    M --> N[instruction loading 검증 및 근거 보고]
-```
-
-이 기본 흐름에서 `guided-auto`는 자동 승인 모드가 아니라 planning aid입니다.
-private/local memory, hooks, permissions, MCP write 또는 production access,
-third-party bridge, Claude plugin 유지 여부는 agent가 여전히 사용자에게 확인해야
-합니다.
-
 ## Skills
 
 | 스킬 | 한 줄 설명 |
 |---|---|
-| [`codex-context-migration`](codex-context-migration/SKILL.md) | Claude-era repo context를 Codex `AGENTS.md`로 audit-first 세팅/이관. in-place setup, full-workspace migration, 하위 repo include/exclude 선택, Claude rules/local/import inventory, generated instruction 검토, parent-policy inheritance, Codex discovery/config audit, runtime config 분리, plugin/skill ecosystem migration, MCP audit, instruction-load 검증 포함. |
+| [`codex-context-migration`](codex-context-migration/README.md) | Claude-era repo context를 Codex `AGENTS.md`로 audit-first 세팅/이관. |
 | [`triangulated-review`](triangulated-review/SKILL.md) | 3 reviewer 패러럴 코드 감사 + 단일 reviewer 발견에 대한 fact-check. 더 큰 multi-reviewer 실험을 cost-pruned한 형태. |
 | [`zoom-caption-capture`](zoom-caption-capture/SKILL.md) | Zoom 웹 클라이언트의 `iframe#webclient` 내부에 `MutationObserver`를 붙여 실시간 자막을 스트리밍 캡처. 토큰 단위 overlap merge + Blob 다운로드로 dump. raw buffer는 무손실 보존, cleanup은 LLM pass에서 처리. |
 
 ### `codex-context-migration`
 
-`CLAUDE.md`, `.claude/`, memory, `.mcp.json` 같은 Claude-era context를
-Codex-native `AGENTS.md` 레이어로 옮길 때 사용합니다.
-
-스킬은 `guided-auto`로 더 낮은 마찰의 흐름을 시작할 수 있습니다. 이 모드에서는
-inventory 신호로 보수적인 migration plan을 먼저 만들고, 위험하거나 실제 파일
-변경 의미가 큰 선택지만 사용자에게 확인합니다. 수동 흐름에서는 먼저 operation
-mode를 고릅니다. 현재 workspace에 Codex를 세팅할지, 전체 workspace를 새
-목적지로 이관할지, 또는 고급 옵션으로 context-only 복사를 할지 정합니다. 기존
-`AGENTS.md`의 신뢰 수준, 독립 하위 Git repo가 workspace/root 정책을 상속해야
-하는지, 각 하위 repo를 include, exclude, copy-only, defer 중 어떻게 처리할지도
-먼저 확정합니다. 그다음 source material을 분류하고, 각 영역을 native
-instruction, bridge, private local context, omit 중 어디에 둘지 결정한 뒤
-`codex exec`로 결과를 검증합니다.
-`claude-config` 같은 Claude-native config/tooling repo는 전체 workspace
-이관이라고 자동 포함하지 않고, 명시적인 defer/exclude 후보로 먼저 올립니다.
-Claude official plugin도 Codex 기본값으로 보지 않습니다. 먼저 Codex
-official/curated/bundled/primary-runtime 대안을 검토하고, Codex-native
-replacement 후보를 기록한 뒤, Claude 쪽 plugin은 호환성 판단을 명시적으로
-거친 뒤에만 유지합니다. 이 replacement 후보는 보장값이 아니며, 대상 Codex
-설치 환경에서 실제 사용 가능 여부를 확인한 뒤 equivalent로 다뤄야 합니다.
-
-큰 workspace에서는 포함된 `scripts/inventory.py` helper로 사용자가 지정한
-출발지/목적지 경로 기준의 read-only 하위 repo/context 표를 만들 수 있습니다.
-`.claude/rules`, `CLAUDE.local.md`, Claude `@import` count, Codex override
-파일, runtime-config 약한 신호, 선택적 plugin/skill/command/hook/agent artifact
-inventory까지 함께 보여줍니다. 이 helper는 누락 방지용 inventory 도구일
-뿐이며, 최종 include/exclude와 ecosystem replacement 판단은 audit workflow
-안에서 확정합니다.
-
-생성 또는 변환된 `AGENTS.md`는 기본적으로 결함으로 보지 않고, 검토해야 할
-provenance로 다룹니다. 품질 판단은 repo 사실, stale reference 검사, domain
-fact 보존 여부, execution context 갱신 여부 같은 증거를 기준으로 남깁니다.
-
-Claude hooks, permissions, slash commands, skills, MCP server, SessionStart 같은
-runtime config는 durable instruction과 별도로 분류해서, `AGENTS.md`가
-Claude-specific mechanics dump가 되지 않게 합니다.
-
-특히 Claude-era context에서 넘어오면서 workspace root 정책과 하위 repo,
-private local context, MCP 설정, generated instruction 검증이 함께 필요한
-사용자에게 잘 맞습니다. 작은 단일 repo라면 inventory, rewrite, validation만
-가볍게 적용하면 됩니다.
+Claude-era context를 Codex-native `AGENTS.md` 레이어로 옮길 때 사용합니다.
+워크플로우, diagram, 예시는 전용
+[`codex-context-migration` README](codex-context-migration/README.md)에 둡니다.
 
 ### `triangulated-review`
 
