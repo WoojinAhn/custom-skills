@@ -291,9 +291,10 @@ def resolve_import(repo: Path, source: Path, import_path: str) -> ResolvedImport
         return ResolvedImport(candidate, "absolute", safe_to_stat=False)
     try:
         repo_root = repo.resolve()
+        source_dir = source.parent.resolve()
     except RuntimeError:
         return ResolvedImport(source.parent / candidate, "external", safe_to_stat=False)
-    normalized = Path(os.path.normpath(source.parent / candidate))
+    normalized = Path(os.path.normpath(source_dir / candidate))
     try:
         relative = normalized.relative_to(repo_root)
     except ValueError:
