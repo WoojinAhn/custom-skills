@@ -12,8 +12,9 @@ import argparse
 import json
 import os
 import re
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable
+from typing import Iterable, Literal
 
 
 PRUNE_DIRS = {
@@ -70,6 +71,7 @@ CLAUDE_NATIVE_QUALIFIERS = {
 }
 
 DEFAULT_CODEX_DOC_MAX_BYTES = 32768
+CONTEXT_ROOT_MARKERS = ("SKILL.md", "CLAUDE.md", "AGENTS.md", ".claude", ".mcp.json")
 
 IMPORT_RE = re.compile(
     r"""^\s*(?:[-*+]\s*)?@(?P<path>(?:~|/|\.{1,2}/)?[A-Za-z0-9_.\-/]+)"""
@@ -143,6 +145,13 @@ PLUGIN_MAPPINGS = {
 }
 
 
+@dataclass(frozen=True)
+class ResolvedImport:
+    path: Path
+    kind: Literal["repo", "home", "absolute", "external"]
+    safe_to_stat: bool
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
@@ -202,7 +211,10 @@ def parse_args() -> argparse.Namespace:
 
 
 def resolve_dir(raw_path: str, label: str, *, must_exist: bool) -> Path:
-    path = Path(raw_path).expanduser().resolve()
+    try:
+        path = Path(raw_path).expanduser().resolve()
+    except RuntimeError as exc:
+        raise SystemExit(f"{label} cannot be resolved safely: {raw_path}") from exc
     if must_exist and not path.exists():
         raise SystemExit(f"{label} does not exist: {path}")
     if path.exists() and not path.is_dir():
@@ -222,7 +234,7 @@ def has_git_marker(path: Path) -> bool:
 
 
 def iter_git_roots(source: Path, max_depth: int) -> Iterable[Path]:
-    for root, dirs, files in os.walk(source):
+    for root, dirs, files in os.walk(source, followlinks=False):
         root_path = Path(root)
         current_depth = depth_from(source, root_path)
 
@@ -271,26 +283,42 @@ def iter_claude_markdown_sources(repo: Path) -> Iterable[Path]:
         yield candidate
 
 
-def resolve_import(repo: Path, source: Path, import_path: str) -> Path:
+def resolve_import(repo: Path, source: Path, import_path: str) -> ResolvedImport:
     if import_path.startswith("~/"):
-        return Path(import_path).expanduser()
+        return ResolvedImport(Path(import_path).expanduser(), "home", safe_to_stat=False)
     candidate = Path(import_path)
     if candidate.is_absolute():
-        return candidate
-    return (source.parent / candidate).resolve()
+        return ResolvedImport(candidate, "absolute", safe_to_stat=False)
+    try:
+        repo_root = repo.resolve()
+    except RuntimeError:
+        return ResolvedImport(source.parent / candidate, "external", safe_to_stat=False)
+    normalized = Path(os.path.normpath(source.parent / candidate))
+    try:
+        relative = normalized.relative_to(repo_root)
+    except ValueError:
+        return ResolvedImport(normalized, "external", safe_to_stat=False)
+
+    current = repo_root
+    for part in relative.parts:
+        current = current / part
+        if current.is_symlink():
+            return ResolvedImport(normalized, "external", safe_to_stat=False)
+    return ResolvedImport(normalized, "repo", safe_to_stat=True)
 
 
-def import_stats(repo: Path) -> dict[str, int]:
-    stats = {
-        "total": 0,
-        "home": 0,
-        "external": 0,
-        "unresolved": 0,
-    }
+def import_stats(repo: Path) -> dict[str, object]:
+    total = 0
+    home = 0
+    external = 0
+    unsafe_external = 0
+    unresolved = 0
+    unreadable_paths: list[str] = []
     for source in iter_claude_markdown_sources(repo):
         try:
             lines = source.read_text(encoding="utf-8", errors="replace").splitlines()
         except OSError:
+            unreadable_paths.append(str(source))
             continue
         in_fence = False
         for line in lines:
@@ -305,16 +333,24 @@ def import_stats(repo: Path) -> dict[str, int]:
                 continue
             import_path = match.group("path").rstrip(".,);]")
             resolved = resolve_import(repo, source, import_path)
-            stats["total"] += 1
+            total += 1
             if import_path.startswith("~/"):
-                stats["home"] += 1
-            try:
-                resolved.relative_to(repo)
-            except ValueError:
-                stats["external"] += 1
-            if not resolved.exists():
-                stats["unresolved"] += 1
-    return stats
+                home += 1
+            if resolved.kind in {"absolute", "external"}:
+                unsafe_external += 1
+            if resolved.kind == "external":
+                external += 1
+            if resolved.safe_to_stat and not resolved.path.exists():
+                unresolved += 1
+    return {
+        "total": total,
+        "home": home,
+        "external": external,
+        "unsafe_external": unsafe_external,
+        "unresolved": unresolved,
+        "unreadable": len(unreadable_paths),
+        "unreadable_paths": unreadable_paths,
+    }
 
 
 def read_json_file(path: Path) -> object | None:
@@ -527,11 +563,15 @@ def artifact_row(
     source_path: Path,
     manifest_path: Path | None,
     signals: list[str],
+    scanned_manifest_type: str = "",
 ) -> dict[str, object]:
     provider = provider_from_path(source_path)
+    effective_ecosystem = ecosystem_from_signals(signals, provider)
     return {
         "artifact_type": artifact_type,
-        "ecosystem": ecosystem_from_signals(signals, provider),
+        "ecosystem": effective_ecosystem,
+        "scanned_manifest_type": scanned_manifest_type,
+        "effective_ecosystem": effective_ecosystem,
         "provider": provider,
         "name": name,
         "version": version_from_path(source_path, name) or "unknown",
@@ -582,16 +622,17 @@ def inventory_artifacts(roots: list[Path]) -> list[dict[str, object]]:
             if key in seen:
                 continue
             seen.add(key)
-            artifact_type = "codex-plugin" if "has-codex-manifest" in signals else "claude-plugin"
+            scanned_manifest_type = "codex-plugin" if marker == ".codex-plugin" else "claude-plugin"
             if "has-codex-manifest" in signals and "has-claude-manifest" in signals:
                 signals.append("mixed-plugin-manifests")
             rows.append(
                 artifact_row(
-                    artifact_type,
+                    "plugin",
                     manifest_name(manifest),
                     plugin_root,
                     manifest,
                     signals,
+                    scanned_manifest_type,
                 )
             )
 
@@ -844,8 +885,12 @@ def list_signals(repo: Path, rel_path: str, destination_repo: Path | None) -> li
         signals.append("claude-home-imports")
     if imports["external"]:
         signals.append("claude-external-imports")
+    if imports["unsafe_external"]:
+        signals.append("claude-unsafe-external-imports")
     if imports["unresolved"]:
         signals.append("claude-unresolved-imports")
+    if imports["unreadable"]:
+        signals.append("unreadable-markdown-source")
     if exists(repo / "AGENTS.md"):
         signals.append("agents-md")
     if exists(repo / "AGENTS.override.md"):
@@ -936,6 +981,63 @@ def suggest_action(signals: list[str]) -> str:
     return "review-needed"
 
 
+def has_context_root_markers(path: Path) -> bool:
+    return any((path / marker).exists() for marker in CONTEXT_ROOT_MARKERS)
+
+
+def inventory_row(
+    repo: Path,
+    rel: str,
+    destination_repo: Path | None,
+    available_plugins: dict[str, list[str]],
+    *,
+    has_git: bool,
+    extra_signals: Iterable[str] = (),
+) -> dict[str, object]:
+    signals = list_signals(repo, rel, destination_repo)
+    for signal in extra_signals:
+        if signal not in signals:
+            signals.append(signal)
+    agents_size = file_size(repo / "AGENTS.md")
+    agents_override_size = file_size(repo / "AGENTS.override.md")
+    imports = import_stats(repo)
+    claude_settings_keys = settings_keys(repo)
+    plugin_refs = detected_plugin_refs(repo)
+    candidates = plugin_candidates(plugin_refs, available_plugins)
+    return {
+        "path": rel,
+        "source": str(repo),
+        "destination": str(destination_repo) if destination_repo else None,
+        "has_git": has_git,
+        "has_CLAUDE": exists(repo / "CLAUDE.md"),
+        "has_claude_project_md": exists(repo / ".claude" / "CLAUDE.md"),
+        "has_CLAUDE_local": exists(repo / "CLAUDE.local.md"),
+        "has_AGENTS": exists(repo / "AGENTS.md"),
+        "has_AGENTS_override": exists(repo / "AGENTS.override.md"),
+        "has_mcp": exists(repo / ".mcp.json"),
+        "has_claude_dir": (repo / ".claude").is_dir(),
+        "claude_rules_count": count_files(repo / ".claude" / "rules", "*.md"),
+        "claude_imports_count": imports["total"],
+        "claude_home_imports_count": imports["home"],
+        "claude_external_imports_count": imports["external"],
+        "unsafe_external_imports_count": imports["unsafe_external"],
+        "claude_unresolved_imports_count": imports["unresolved"],
+        "unreadable_markdown_sources_count": imports["unreadable"],
+        "unreadable_markdown_source_paths": imports["unreadable_paths"],
+        "claude_settings_keys": sorted(claude_settings_keys),
+        "is_claude_native_repo": (
+            "claude-native-repo" in signals or "claude-config-repo" in signals
+        ),
+        "agents_size_bytes": agents_size,
+        "agents_override_size_bytes": agents_override_size,
+        "detected_plugin_refs": plugin_refs,
+        "codex_plugin_candidates": candidates,
+        "plugin_decisions_required": plugin_decision_flags(plugin_refs, candidates),
+        "signals": signals,
+        "suggested_action": suggest_action(signals),
+    }
+
+
 def inventory(
     source: Path,
     destination: Path | None,
@@ -944,6 +1046,20 @@ def inventory(
 ) -> list[dict[str, object]]:
     rows: list[dict[str, object]] = []
     seen: set[Path] = set()
+
+    if not has_git_marker(source) and has_context_root_markers(source):
+        destination_repo = destination if destination is not None else None
+        rows.append(
+            inventory_row(
+                source,
+                ".",
+                destination_repo,
+                available_plugins,
+                has_git=False,
+                extra_signals=("non-git-context-root",),
+            )
+        )
+        seen.add(source)
 
     for repo in iter_git_roots(source, max_depth):
         if repo in seen:
@@ -955,43 +1071,14 @@ def inventory(
         if destination is not None:
             destination_repo = destination if rel == "." else destination / rel
 
-        signals = list_signals(repo, rel, destination_repo)
-        agents_size = file_size(repo / "AGENTS.md")
-        agents_override_size = file_size(repo / "AGENTS.override.md")
-        imports = import_stats(repo)
-        claude_settings_keys = settings_keys(repo)
-        plugin_refs = detected_plugin_refs(repo)
-        candidates = plugin_candidates(plugin_refs, available_plugins)
         rows.append(
-            {
-                "path": rel,
-                "source": str(repo),
-                "destination": str(destination_repo) if destination_repo else None,
-                "has_git": True,
-                "has_CLAUDE": exists(repo / "CLAUDE.md"),
-                "has_claude_project_md": exists(repo / ".claude" / "CLAUDE.md"),
-                "has_CLAUDE_local": exists(repo / "CLAUDE.local.md"),
-                "has_AGENTS": exists(repo / "AGENTS.md"),
-                "has_AGENTS_override": exists(repo / "AGENTS.override.md"),
-                "has_mcp": exists(repo / ".mcp.json"),
-                "has_claude_dir": (repo / ".claude").is_dir(),
-                "claude_rules_count": count_files(repo / ".claude" / "rules", "*.md"),
-                "claude_imports_count": imports["total"],
-                "claude_home_imports_count": imports["home"],
-                "claude_external_imports_count": imports["external"],
-                "claude_unresolved_imports_count": imports["unresolved"],
-                "claude_settings_keys": sorted(claude_settings_keys),
-                "is_claude_native_repo": (
-                    "claude-native-repo" in signals or "claude-config-repo" in signals
-                ),
-                "agents_size_bytes": agents_size,
-                "agents_override_size_bytes": agents_override_size,
-                "detected_plugin_refs": plugin_refs,
-                "codex_plugin_candidates": candidates,
-                "plugin_decisions_required": plugin_decision_flags(plugin_refs, candidates),
-                "signals": signals,
-                "suggested_action": suggest_action(signals),
-            }
+            inventory_row(
+                repo,
+                rel,
+                destination_repo,
+                available_plugins,
+                has_git=True,
+            )
         )
 
     return sorted(rows, key=lambda row: str(row["path"]))
@@ -1007,6 +1094,7 @@ def markdown_escape(value: object) -> str:
 def print_markdown(rows: list[dict[str, object]]) -> None:
     headers = [
         "path",
+        "has_git",
         "has_CLAUDE",
         "has_claude_project_md",
         "has_CLAUDE_local",
@@ -1016,7 +1104,9 @@ def print_markdown(rows: list[dict[str, object]]) -> None:
         "has_claude_dir",
         "claude_rules_count",
         "claude_imports_count",
+        "unsafe_external_imports_count",
         "claude_unresolved_imports_count",
+        "unreadable_markdown_sources_count",
         "is_claude_native_repo",
         "agents_size_bytes",
         "agents_override_size_bytes",
@@ -1046,7 +1136,8 @@ def print_artifact_markdown(rows: list[dict[str, object]]) -> None:
         return
     headers = [
         "artifact_type",
-        "ecosystem",
+        "scanned_manifest_type",
+        "effective_ecosystem",
         "provider",
         "name",
         "version",
