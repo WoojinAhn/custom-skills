@@ -127,6 +127,8 @@ Use `--audit-detail` when per-import evidence is needed for dispute resolution.
 
 ## Validation Commands
 
+Before either command, run `command -v codex >/dev/null || { echo "Codex CLI is required for instruction-load validation. Install Codex or set PATH to include the codex binary. If the target environment cannot install Codex yet, defer validation and mark this audit step as deferred-codex-cli-unavailable."; exit 1; }`.
+
 For Git repos:
 
 ```bash
@@ -170,11 +172,9 @@ A migration is complete only when applicable items are true:
 
 ## References
 
-- `references/operation-modes.md`: operation modes, target posture, parent
-  policy, child selection, and guided-auto decision details.
+- `references/operation-modes.md`: operation modes and guided-auto details.
 - `references/audit-template.md`: migration audit template.
-- `references/agents-md-shapes.md`: native, bridge, and dual-run `AGENTS.md`
-  templates.
+- `references/agents-md-shapes.md`: native, bridge, and dual-run templates.
 - `references/ecosystem-matrix.md`: Claude-to-Codex ecosystem migration matrix.
-- `references/migration-workflow-details.md`: classification, layer model, copy modes, rewrite rubric, and quality checks.
-- `references/runtime-and-skill-artifacts.md`: private context, MCP, runtime config, plugin, and skill artifact migration.
+- `references/migration-workflow-details.md`: classification and rewrite detail.
+- `references/runtime-and-skill-artifacts.md`: runtime and ecosystem artifacts.

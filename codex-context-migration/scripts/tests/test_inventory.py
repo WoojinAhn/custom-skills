@@ -224,6 +224,79 @@ def test_depth_limit_reports_skipped_git_candidates(tmp_path):
     assert "depth-limit-reached" in rows[0]["signals"]
 
 
+def test_resolve_import_unsafe_external_signal(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / ".git").mkdir()
+    (tmp_path / "outside.md").write_text("outside\n", encoding="utf-8")
+    (repo / "CLAUDE.md").write_text("@../outside.md\n", encoding="utf-8")
+
+    rows = inventory.inventory(repo, None, 5, {})
+
+    assert rows[0]["unsafe_external_imports_count"] == 1
+    assert "claude-unsafe-external-imports" in rows[0]["signals"]
+
+
+def test_symlink_loop_does_not_recurse(tmp_path):
+    root = tmp_path / "workspace"
+    repo = root / "repo"
+    repo.mkdir(parents=True)
+    (repo / ".git").mkdir()
+    (root / "loop").symlink_to(root, target_is_directory=True)
+
+    rows = inventory.inventory(root, None, max_depth=5, available_plugins={})
+
+    assert [row["path"] for row in rows] == ["repo"]
+
+
+def test_oversized_markdown_skipped(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / ".git").mkdir()
+    (repo / "CLAUDE.md").write_bytes(b"@docs/foo.md\n" + b"x" * (2 * 1024 * 1024))
+
+    rows = inventory.inventory(repo, None, 5, {})
+    stats = inventory.import_stats(repo)
+
+    assert stats["skipped_oversized_count"] == 1
+    assert rows[0]["skipped_oversized_count"] == 1
+    assert rows[0]["claude_imports_count"] == 0
+    assert "skipped-oversized-source" in rows[0]["signals"]
+
+
+def test_smaller_markdown_under_oom_guard_parses_normally(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / ".git").mkdir()
+    docs = repo / "docs"
+    docs.mkdir()
+    (docs / "foo.md").write_text("foo\n", encoding="utf-8")
+    padding = "x" * (100 * 1024)
+    (repo / "CLAUDE.md").write_text(f"@docs/foo.md\n{padding}\n", encoding="utf-8")
+
+    rows = inventory.inventory(repo, None, 5, {})
+
+    assert rows[0]["skipped_oversized_count"] == 0
+    assert rows[0]["claude_imports_count"] == 1
+    assert "skipped-oversized-source" not in rows[0]["signals"]
+
+
+def test_unreadable_markdown_signal(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / ".git").mkdir()
+    source = repo / "CLAUDE.md"
+    source.write_text("@./note.md\n", encoding="utf-8")
+    source.chmod(0)
+    try:
+        rows = inventory.inventory(repo, None, 5, {})
+    finally:
+        source.chmod(0o600)
+
+    assert rows[0]["unreadable_markdown_sources_count"] == 1
+    assert "unreadable-markdown-source" in rows[0]["signals"]
+
+
 def test_plugin_mappings_load_from_json_without_code_change(tmp_path):
     mappings = tmp_path / "plugin-mappings.json"
     mappings.write_text(

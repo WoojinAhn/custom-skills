@@ -160,6 +160,8 @@ availability and behavior before choosing a replacement.
 ## Verification
 
 - `codex exec` command:
+- Codex CLI unavailable: `yes/no`
+- Deferred state: `deferred-codex-cli-unavailable` / `none`
 - Active instruction files reported:
   - `<path>`
   - `<path>`
