@@ -75,10 +75,39 @@ Use the agent's multi-select question tool, for example Codex
 include/exclude decisions; otherwise present a plain-text checklist and wait
 for confirmation before touching child repos.
 
+## Preflight Gate
+
+Before running inventory, reading migration source files, or making any
+classification decisions, confirm the migration endpoints unless the user has
+already stated them explicitly in the current turn.
+
+Required first-turn confirmation:
+
+- Source root.
+- Operation mode: `setup-in-place`, `migrate-full-workspace`, or
+  `context-only`.
+- Destination root when operation mode is destination-based.
+- Whether read-only inventory may run before edits.
+
+Do not infer source root from the current working directory when the user only
+says to run this skill. If the user provides no endpoints, stop and ask:
+
+```text
+Source root and destination/mode? For example:
+source `/path/a`, mode `setup-in-place`; or source `/path/a` to destination
+`/path/b` with `migrate-full-workspace`.
+```
+
+Only after this answer, run the inventory command.
+
 ## Workflow
 
-1. Establish scope and required decisions. Use `references/operation-modes.md`
-   for detailed mode, posture, parent-policy, and guided-auto semantics.
+1. Establish scope and required decisions. This is a hard gate: do not run
+   inventory or inspect source materials until source root, operation mode,
+   destination requirements, and read-only inventory permission are explicitly
+   confirmed or already present in the user's current request. Use
+   `references/operation-modes.md` for detailed mode, posture, parent-policy,
+   and guided-auto semantics.
 2. Run the read-only inventory helper and treat its output as weak review
    signals, not final include/exclude decisions.
 3. Classify source material: durable instructions, private/local context,
@@ -94,6 +123,8 @@ for confirmation before touching child repos.
 9. Record quality evidence and deferred/omitted material.
 
 ## Inventory Commands
+
+Run these commands only after the Preflight Gate is satisfied.
 
 For `setup-in-place`:
 
