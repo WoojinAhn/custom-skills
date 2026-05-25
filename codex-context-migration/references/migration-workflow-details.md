@@ -52,6 +52,34 @@ Do not exclude just because Claude-era files exist. Record a concrete reason.
 Conversely, do not silently include Claude-native tooling repos just because a
 full-workspace migration was requested.
 
+## Purpose-Based Classification
+
+Do not classify repositories by string matching alone. Use this procedure:
+
+1. Read a concise source such as `README.md`, package metadata, or the entry
+   point.
+2. Write a one-line `purpose` in the manifest.
+3. Decide whether the repo is:
+   - a product repo that uses Claude CLI as an implementation dependency,
+   - an ecosystem/catalog repo that treats Claude as data,
+   - a skill source repo,
+   - a runtime/config repo that manipulates Claude state,
+   - or ordinary workspace source.
+4. Make the decision from that purpose.
+
+Examples:
+
+- `backlog-idea-app`: product repo using `claude --print`; review/retain
+  unless the product itself is out of scope.
+- `custom-skills`: skill source repo; retain as source material, but do not
+  install runtime skills unless requested.
+- `ai-tools-radar`: ecosystem/catalog repo; retain when the catalog remains
+  useful.
+- `claude-config`: Claude runtime/config sync repo; exclude or defer unless the
+  user explicitly opts in.
+- `tab-labeler`: tool whose purpose is Claude terminal/session behavior;
+  exclude or defer for Codex-native workspace migration.
+
 ## Layer Model
 
 - Identify the target Codex global/user instruction mechanism. Use
@@ -85,6 +113,49 @@ excluding generated local state:
   and raw session logs.
 - Apply confirmed child repo selection before copying.
 - Verify source and destination repo counts, or explain every mismatch.
+- Generate a manifest before copy and derive include/exclude behavior from
+  `decision=migrate` rows.
+- Check remote freshness for Git repos with remotes. If a repo is behind
+  upstream, record whether to pull first, copy stale local state as-is, exclude,
+  or defer.
+- Run a dry-run preview before bulk copy. Show surprising exclusions or stale
+  repos before the real copy.
+- For Codex-native targets, run a post-copy forbidden-path scan for active
+  `CLAUDE.md`, `.claude/`, and `.mcp.json` artifacts. Hits fail the migration
+  until removed or explicitly bridged.
+
+Recommended staged order:
+
+1. Inventory.
+2. Codex ecosystem snapshot.
+3. MCP capability audit when MCP config, MCP servers, or target runtime
+   registrations are present.
+4. Classification.
+5. Manifest generation.
+6. Dry-run preview.
+7. User confirmation for risky/surprising bulk-copy decisions.
+8. Copy.
+9. Forbidden-path scan.
+10. Count delta.
+11. Targeted `codex exec`.
+12. State summary update.
+
+## MCP Capability Selection
+
+MCP servers are runtime capabilities. Do not copy source MCP config directly
+into Codex config.
+
+1. Inventory source `.mcp.json`, Claude MCP settings, and target Codex MCP
+   baseline.
+2. Classify each capability by purpose, transport, auth state, credentials,
+   write/production risk, and Codex-native equivalent.
+3. Prefer target runtime or Codex-native MCPs when already present.
+4. Default unauthenticated, failing, credentialed, remote, write-capable, or
+   production MCP servers to `defer` unless the user approves them.
+5. Mark target MCPs with no clear use case as `cleanup-candidate`, not
+   silently retained.
+6. Keep plugin and MCP decisions in the same ecosystem audit, but execute them
+   with separate commands.
 
 ## Native Rewrite Rubric
 
@@ -137,3 +208,17 @@ Use objective checks:
 Quality conclusions must be evidence-based. Mark a file lower quality only when
 it contradicts repo facts, preserves stale execution context, or omits required
 coverage.
+
+## Parallel Classification
+
+For large workspaces, child repo classification can be parallelized. Each worker
+may inspect independent repos and return proposed manifest rows, but the
+coordinator is the only writer of shared files:
+
+- manifest
+- audit
+- root `AGENTS.md`
+- child `AGENTS.md` files when parent-policy consistency matters
+- central indexes or registries
+
+Do not let multiple workers write the manifest concurrently.

@@ -23,6 +23,14 @@ Destination: `<destination path>`
 - Guided-auto confirmations resolved:
 - Guided-auto blocked auto-actions:
 - Inventory command:
+- Manifest command:
+- Manifest written before copy: yes/no/n/a
+- Remote freshness gate command:
+- Remote freshness gate result:
+- Remote freshness decisions required:
+- MCP audit command:
+- MCP target baseline command:
+- MCP decisions requiring approval:
 - Import scan command:
 - Import recursion depth checked:
 - Source Git repo count:
@@ -43,6 +51,26 @@ Destination: `<destination path>`
 - Parent policy reference coverage:
 - Child repo migration selection mode: `all` / `selected` / `defer-children`
 - Child repo selection coverage:
+
+## Migration Manifest
+
+The manifest is the authoritative copy plan. It must be recorded before any
+bulk copy for `migrate-full-workspace`.
+
+| Path | Kind | Remote state | Decision | Reason | Evidence |
+| --- | --- | --- | --- | --- | --- |
+| `example-repo` | `product-repo` | `fresh` / `behind` / `no-remote` | migrate / exclude / defer / already-present |  |  |
+| `claude-config` | `claude-native-repo` |  | exclude / defer | Claude runtime/config repository |  |
+| `custom-skills` | `skill-source-repo` |  | migrate / defer | Product/source material, not installed runtime copy |  |
+
+Manifest summary:
+
+- Included:
+- Excluded:
+- Deferred:
+- Already present:
+- Needs review:
+- Stale or behind sources:
 
 ## Claude Source Coverage
 
@@ -66,6 +94,37 @@ Destination: `<destination path>`
 | `.mcp.json` | MCP server config | credentials/write scope | Codex MCP config / defer |  |  |
 | `SessionStart` | startup context injection | dynamic/private context | `AGENTS.md` / private / defer |  |  |
 
+## MCP Capability Audit
+
+MCP migration is capability re-selection, not config copying. Source MCP config,
+Claude MCP settings, and existing target MCP registrations are evidence only.
+
+| MCP | Origin | Transport | Auth state | Risk | Codex-native equivalent | Decision | Evidence |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `context7` | source / target | stdio-command | unsupported / n/a | low | `context7` | codex-native / already-present |  |
+| `node_repl` | target | stdio-command | unsupported | Codex runtime | Codex app runtime | already-present |  |
+| `notion` | target | remote-url | not logged in | auth/external data | none / Notion MCP | cleanup-candidate / defer |  |
+| `prod-writer` | source | remote-url | token/env | credentials/write/production | none known | defer |  |
+
+MCP summary:
+
+- Already present:
+- Codex-native:
+- Deferred:
+- Cleanup candidates:
+- Manual review:
+- Omitted:
+
+## Global Claude Runtime Snapshot
+
+| Category | Found | Action | Evidence |
+| --- | --- | --- | --- |
+| Global settings | yes/no | migrate / defer / omit | `~/.claude/settings.json` keys checked |
+| Global hooks | yes/no | defer / omit / migrate with approval | Hook events and commands checked |
+| Global commands | yes/no | rewrite / defer / omit | Command filenames checked |
+| Global plugins | yes/no | already-present / defer / omit | Plugin names and target availability checked |
+| Global skills | yes/no | already-present / rewrite / defer / omit | Skill package names checked |
+
 ## Plugin Ecosystem Classification
 
 Codex-native candidates are not guarantees. Verify target-environment
@@ -73,11 +132,11 @@ availability and behavior before choosing a replacement.
 
 | Source plugin/skill | Source ecosystem | Purpose | Codex-native candidate | Decision | Evidence |
 | --- | --- | --- | --- | --- | --- |
-| `frontend-design` | `claude-plugins-official` | frontend UI generation | `build-web-apps@openai-curated` | Codex-native replacement / retained / deferred |  |
-| `superpowers` | `claude-plugins-official` | workflow skills | `superpowers@openai-curated` | Codex-native replacement / retained / deferred |  |
-| `playwright` | `claude-plugins-official` | browser automation | MCP Playwright + `browser@openai-bundled` | Codex-native replacement / retained / deferred |  |
-| `mcp-server-dev` | `claude-plugins-official` | MCP/server development | `openai-developers` / `plugin-eval` research candidate | retained / third-party exception / deferred |  |
-| `cc` | third-party bridge | reverse bridge / compatibility | none known | third-party exception / deferred |  |
+| `frontend-design` | `claude-plugins-official` | frontend UI generation | target Codex skill/plugin if installed | already-present / rewrite / defer |  |
+| `superpowers` | `claude-plugins-official` | workflow skills | target Codex skill/plugin if installed | already-present / rewrite / defer |  |
+| `playwright` | `claude-plugins-official` | browser automation | MCP Playwright + browser plugin if installed | already-present / rewrite / defer |  |
+| `mcp-server-dev` | `claude-plugins-official` | MCP/server development | target Codex skill/plugin if installed | already-present / third-party exception / defer |  |
+| `cc` | third-party bridge | reverse bridge / compatibility | none known unless target plugin exists | already-present / third-party exception / defer |  |
 
 ## Child Repo Selection
 
@@ -151,6 +210,10 @@ availability and behavior before choosing a replacement.
 - `@import` coverage:
 - Unresolved/broken imports:
 - Source generated/converted files disposition:
+- Manifest-to-copy consistency:
+- Forbidden path scan command:
+- Forbidden path scan result:
+- Codex-native forbidden active paths found:
 - Stale source path/reference search:
 - Suspicious mechanical substitution search:
 - Normalized source-to-target comparison:

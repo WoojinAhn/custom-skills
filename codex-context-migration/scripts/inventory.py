@@ -12,6 +12,8 @@ import argparse
 import json
 import os
 import re
+import subprocess
+import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, Literal
@@ -99,6 +101,8 @@ JSON_PLUGIN_CONTEXT_KEYS = (
     "provider",
 )
 PLUGIN_MAPPINGS_PATH = Path(__file__).resolve().parents[1] / "references" / "plugin-mappings.json"
+CODEX_RUNTIME_MCP_NAMES = {"node_repl"}
+CODEX_NATIVE_MCP_NAMES = {"context7", "playwright", "magic", "sequential-thinking"}
 
 
 @dataclass(frozen=True)
@@ -168,6 +172,40 @@ def parse_args() -> argparse.Namespace:
         help="Emit a conservative guided-auto migration plan draft from inventory signals.",
     )
     parser.add_argument(
+        "--emit-manifest",
+        action="store_true",
+        help="Emit a draft migration manifest that binds inventory classifications to copy decisions.",
+    )
+    parser.add_argument(
+        "--operation-mode",
+        choices=("setup-in-place", "migrate-full-workspace", "context-only"),
+        help="Operation mode to record in the emitted manifest. Defaults from destination presence.",
+    )
+    parser.add_argument(
+        "--target-posture",
+        choices=("codex-native", "dual-run-current-workspace"),
+        help="Target posture to record in the emitted manifest. Defaults from destination presence.",
+    )
+    parser.add_argument(
+        "--include-global-claude-runtime",
+        action="store_true",
+        help="Also classify global ~/.claude runtime settings, commands, plugins, and skills.",
+    )
+    parser.add_argument(
+        "--include-mcp-audit",
+        action="store_true",
+        help="Also classify source MCP configs and target Codex MCP baseline as capability decisions.",
+    )
+    parser.add_argument(
+        "--claude-home",
+        default="~/.claude",
+        help="Claude home used for global runtime classification. Default: ~/.claude.",
+    )
+    parser.add_argument(
+        "--forbidden-scan-root",
+        help="Destination root to scan for codex-native forbidden paths after copy.",
+    )
+    parser.add_argument(
         "--artifact-scope",
         choices=("active", "all"),
         default="active",
@@ -218,6 +256,80 @@ def git_marker_kind(path: Path) -> str:
             return "file-submodule"
         return "file-worktree"
     return "none"
+
+
+def git_output(repo: Path, *args: str) -> str:
+    try:
+        completed = subprocess.run(
+            ["git", *args],
+            cwd=repo,
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+    except (OSError, subprocess.CalledProcessError):
+        return ""
+    return completed.stdout.strip()
+
+
+def git_remote_freshness(repo: Path) -> dict[str, object]:
+    """Fetch and summarize whether a repo is stale relative to its upstream."""
+    remotes = git_output(repo, "remote")
+    if not remotes:
+        return {
+            "has_remote": False,
+            "branch": git_output(repo, "branch", "--show-current"),
+            "upstream": "",
+            "head": git_output(repo, "rev-parse", "HEAD"),
+            "upstream_head": "",
+            "ahead": 0,
+            "behind": 0,
+            "decision_required": False,
+            "signals": ["remote-not-configured"],
+        }
+
+    subprocess.run(
+        ["git", "fetch", "--quiet"],
+        cwd=repo,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        check=False,
+    )
+    branch = git_output(repo, "branch", "--show-current")
+    upstream = git_output(repo, "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}")
+    if not upstream:
+        upstream = f"origin/{branch}" if branch else ""
+    head = git_output(repo, "rev-parse", "HEAD")
+    upstream_head = git_output(repo, "rev-parse", upstream) if upstream else ""
+    ahead = 0
+    behind = 0
+    if upstream_head:
+        counts = git_output(repo, "rev-list", "--left-right", "--count", f"HEAD...{upstream}")
+        parts = counts.split()
+        if len(parts) == 2 and all(part.isdigit() for part in parts):
+            ahead = int(parts[0])
+            behind = int(parts[1])
+
+    signals: list[str] = []
+    if behind:
+        signals.append("remote-behind")
+    if ahead:
+        signals.append("remote-ahead")
+    if not signals:
+        signals.append("remote-current")
+    return {
+        "has_remote": True,
+        "branch": branch,
+        "upstream": upstream,
+        "head": head,
+        "upstream_head": upstream_head,
+        "ahead": ahead,
+        "behind": behind,
+        "decision_required": bool(behind),
+        "signals": signals,
+    }
 
 
 def count_git_markers(path: Path) -> int:
@@ -438,6 +550,14 @@ def read_json_file(path: Path) -> object | None:
     try:
         return json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
+        return None
+
+
+def read_toml_file(path: Path) -> object | None:
+    try:
+        with path.open("rb") as file:
+            return tomllib.load(file)
+    except (OSError, tomllib.TOMLDecodeError):
         return None
 
 
@@ -918,6 +1038,236 @@ def plugin_decision_flags(
     return sorted(flags)
 
 
+def plugin_migration_decisions(candidates: list[dict[str, object]]) -> list[dict[str, str]]:
+    decisions: list[dict[str, str]] = []
+    for candidate in candidates:
+        source = str(candidate.get("source") or "")
+        target = str(candidate.get("candidate") or "")
+        status = str(candidate.get("candidate_status") or "")
+        if status == "available":
+            decision = "already-present"
+            reason = "Codex candidate is available"
+        elif status in {"not-found", "manual-review", "not-applicable"}:
+            decision = "defer"
+            reason = "Codex candidate needs manual review"
+        else:
+            decision = "defer"
+            reason = f"candidate status is {status or 'unknown'}"
+        decisions.append(
+            {
+                "source": source,
+                "candidate": target,
+                "decision": decision,
+                "reason": reason,
+            }
+        )
+    return decisions
+
+
+def global_claude_runtime_snapshot(claude_home: Path) -> list[dict[str, object]]:
+    rows: list[dict[str, object]] = []
+    if not claude_home.exists():
+        return rows
+
+    for name in ("settings.json", "settings.local.json"):
+        path = claude_home / name
+        if not path.is_file():
+            continue
+        data = read_json_file(path)
+        signals: list[str] = []
+        if isinstance(data, dict):
+            if "hooks" in data:
+                signals.append("hooks")
+            if "permissions" in data:
+                signals.append("permissions")
+            if "env" in data:
+                signals.append("env")
+            if "enabledPlugins" in data:
+                signals.append("enabled-plugins")
+            if "statusLine" in data:
+                signals.append("status-line")
+        else:
+            signals.append("unreadable")
+        rows.append(
+            {
+                "path": name,
+                "kind": "runtime-config",
+                "decision": "defer",
+                "reason": "global Claude runtime config requires Codex-specific design",
+                "signals": signals,
+            }
+        )
+
+    commands = claude_home / "commands"
+    if commands.is_dir():
+        for path in sorted(commands.glob("*.md")):
+            rows.append(
+                {
+                    "path": f"commands/{path.name}",
+                    "kind": "claude-command",
+                    "decision": "defer",
+                    "reason": "Claude slash command requires Codex-native redesign",
+                    "signals": ["command-file"],
+                }
+            )
+
+    plugins = claude_home / "plugins"
+    if plugins.is_dir():
+        for path in sorted(plugins.glob("*.json")):
+            rows.append(
+                {
+                    "path": f"plugins/{path.name}",
+                    "kind": "plugin-runtime-state",
+                    "decision": "defer",
+                    "reason": "plugin runtime registry/config must not be copied as workspace source",
+                    "signals": ["plugin-runtime-json"],
+                }
+            )
+
+    skills = claude_home / "skills"
+    if skills.is_dir():
+        for path in sorted(skills.glob("*/SKILL.md")):
+            rows.append(
+                {
+                    "path": f"skills/{path.parent.name}/SKILL.md",
+                    "kind": "skill-source",
+                    "decision": "defer",
+                    "reason": "loose Claude skill requires portability review",
+                    "signals": ["skill-md"],
+                }
+            )
+
+    return rows
+
+
+def mcp_transport(config: dict[str, object]) -> str:
+    if config.get("url"):
+        return "remote-url"
+    if config.get("command"):
+        return "stdio-command"
+    return "unknown"
+
+
+def mcp_risk_signals(name: str, config: dict[str, object]) -> list[str]:
+    signals: list[str] = []
+    lower_name = name.lower()
+    url = str(config.get("url") or "")
+    command = str(config.get("command") or "")
+    if name in CODEX_RUNTIME_MCP_NAMES or "node_repl" in command:
+        return ["codex-runtime"]
+    if url:
+        signals.append("remote-access")
+    if isinstance(config.get("env"), dict) and config.get("env"):
+        signals.append("credentials")
+    if any(token in lower_name for token in ("prod", "write", "admin")):
+        signals.append("write-or-production-risk")
+    if any(token in url.lower() for token in ("prod", "admin", "write")):
+        signals.append("write-or-production-risk")
+    return sorted(set(signals))
+
+
+def mcp_row(
+    *,
+    name: str,
+    origin: str,
+    source_path: Path,
+    config: dict[str, object],
+) -> dict[str, object]:
+    return {
+        "name": name,
+        "origin": origin,
+        "source_path": str(source_path),
+        "transport": mcp_transport(config),
+        "command": str(config.get("command") or ""),
+        "url": str(config.get("url") or ""),
+        "risk_signals": mcp_risk_signals(name, config),
+    }
+
+
+def source_mcp_capabilities(source: Path) -> list[dict[str, object]]:
+    rows: list[dict[str, object]] = []
+    for path in sorted(source.rglob(".mcp.json")):
+        if ".git" in path.parts:
+            continue
+        data = read_json_file(path)
+        if not isinstance(data, dict):
+            rows.append(
+                {
+                    "name": path.name,
+                    "origin": "source",
+                    "source_path": str(path),
+                    "transport": "unknown",
+                    "command": "",
+                    "url": "",
+                    "risk_signals": ["unreadable"],
+                }
+            )
+            continue
+        servers = data.get("mcpServers") or data.get("servers") or {}
+        if not isinstance(servers, dict):
+            continue
+        for name, config in sorted(servers.items()):
+            if not isinstance(name, str) or not isinstance(config, dict):
+                continue
+            rows.append(
+                mcp_row(name=name, origin="source", source_path=path, config=config)
+            )
+    return rows
+
+
+def target_mcp_baseline(codex_home: Path) -> list[dict[str, object]]:
+    config_path = codex_home / "config.toml"
+    data = read_toml_file(config_path)
+    if not isinstance(data, dict):
+        return []
+    servers = data.get("mcp_servers") or {}
+    if not isinstance(servers, dict):
+        return []
+    rows: list[dict[str, object]] = []
+    for name, config in sorted(servers.items()):
+        if not isinstance(name, str) or not isinstance(config, dict):
+            continue
+        rows.append(
+            mcp_row(name=name, origin="target", source_path=config_path, config=config)
+        )
+    return rows
+
+
+def mcp_decision(row: dict[str, object], target_names: set[str]) -> tuple[str, str]:
+    name = str(row.get("name") or "")
+    origin = str(row.get("origin") or "")
+    risk_signals = set(row.get("risk_signals") or [])
+    transport = str(row.get("transport") or "")
+    if name in CODEX_RUNTIME_MCP_NAMES or "codex-runtime" in risk_signals:
+        return "already-present", "Codex target runtime baseline"
+    if origin == "target" and name == "notion":
+        return "cleanup-candidate", "remote MCP needs auth review before keeping"
+    if "credentials" in risk_signals or "write-or-production-risk" in risk_signals:
+        return "defer", "MCP uses credentials or remote access requiring review"
+    if origin == "source" and name in target_names:
+        return "already-present", "Target already has an MCP with the same capability name"
+    if name in CODEX_NATIVE_MCP_NAMES:
+        return "codex-native", "Known useful Codex MCP capability"
+    if transport == "remote-url":
+        return "defer", "remote MCP requires auth and data-scope review"
+    return "manual-review", "MCP capability requires explicit target decision"
+
+
+def mcp_capability_decisions(
+    source_rows: list[dict[str, object]],
+    target_rows: list[dict[str, object]],
+) -> list[dict[str, object]]:
+    target_names = {str(row.get("name") or "") for row in target_rows}
+    decisions: list[dict[str, object]] = []
+    for row in [*target_rows, *source_rows]:
+        decision, reason = mcp_decision(row, target_names)
+        updated = dict(row)
+        updated["decision"] = decision
+        updated["reason"] = reason
+        decisions.append(updated)
+    return decisions
+
+
 def destination_path_relation(source: Path, destination: Path | None) -> str:
     if destination is None:
         return ""
@@ -1174,6 +1524,116 @@ def suggest_action(signals: list[str]) -> str:
     if "weak-exclusion-name" in signal_set:
         return "defer-candidate"
     return "review-needed"
+
+
+def read_first_existing_text(repo: Path, names: Iterable[str]) -> str:
+    for name in names:
+        path = repo / name
+        if not path.is_file():
+            continue
+        try:
+            return path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+    return ""
+
+
+def classify_repo_kind(row: dict[str, object]) -> str:
+    path = str(row.get("path") or "")
+    source = Path(str(row.get("source") or "."))
+    signals = set(row.get("signals") or [])
+    purpose_text = read_first_existing_text(
+        source,
+        ("README.md", "README.ko.md", "package.json", "pyproject.toml"),
+    ).lower()
+
+    if {"claude-native-repo", "claude-config-repo"} & signals:
+        if "claude --print" in purpose_text and "app" in purpose_text:
+            return "product-using-claude-cli"
+        if path == "custom-skills" or "skill source" in purpose_text:
+            return "skill-source"
+        return "claude-runtime-tool"
+    if "claude --print" in purpose_text:
+        return "product-using-claude-cli"
+    if path == "custom-skills" or "skill source" in purpose_text:
+        return "skill-source"
+    if row.get("plugin_decisions_required"):
+        return "ecosystem-tool"
+    return "workspace-repo"
+
+
+def manifest_decision(row: dict[str, object], *, target_posture: str) -> tuple[str, str]:
+    kind = classify_repo_kind(row)
+    signals = set(row.get("signals") or [])
+    action = str(row.get("suggested_action") or "")
+    if kind == "claude-runtime-tool":
+        return "exclude", "claude-native runtime/config/tooling repository"
+    if target_posture == "codex-native" and "claude-local-md" in signals:
+        return "defer", "private/local Claude context requires separate decision"
+    if action in {"exclude-candidate", "defer-candidate", "review-private-context"}:
+        return "defer", f"inventory suggested {action}"
+    return "migrate", f"inventory suggested {action or 'review-needed'}"
+
+
+def build_migration_manifest(
+    source: Path,
+    destination: Path | None,
+    rows: list[dict[str, object]],
+    *,
+    operation_mode: str,
+    target_posture: str,
+) -> list[dict[str, object]]:
+    manifest: list[dict[str, object]] = []
+    for row in rows:
+        rel = str(row.get("path") or ".")
+        source_path = Path(str(row.get("source") or source))
+        destination_path = ""
+        if destination is not None:
+            destination_path = str(destination if rel == "." else destination / rel)
+        decision, reason = manifest_decision(row, target_posture=target_posture)
+        manifest.append(
+            {
+                "path": rel,
+                "purpose": repo_purpose_summary(source_path),
+                "kind": classify_repo_kind(row),
+                "decision": decision,
+                "reason": reason,
+                "destination": destination_path,
+                "evidence_source": "inventory-signals",
+                "operation_mode": operation_mode,
+                "target_posture": target_posture,
+                "signals": row.get("signals") or [],
+                "remote_freshness": git_remote_freshness(source_path)
+                if bool(row.get("has_git"))
+                else {},
+            }
+        )
+    return manifest
+
+
+def repo_purpose_summary(repo: Path) -> str:
+    text = read_first_existing_text(repo, ("README.md", "README.ko.md", "package.json"))
+    for line in text.splitlines():
+        stripped = line.strip(" #\t")
+        if stripped:
+            return stripped[:160]
+    return repo.name
+
+
+def forbidden_path_scan(destination: Path, *, target_posture: str) -> list[dict[str, str]]:
+    if target_posture != "codex-native" or not destination.exists():
+        return []
+    hits: list[dict[str, str]] = []
+    for path in sorted(destination.rglob("CLAUDE.md")):
+        if ".git" not in path.parts:
+            hits.append({"kind": "claude-md", "path": str(path), "severity": "fail"})
+    for path in sorted(destination.rglob(".claude")):
+        if path.is_dir() and ".git" not in path.parts:
+            hits.append({"kind": "claude-runtime-dir", "path": str(path), "severity": "fail"})
+    for path in sorted(destination.rglob(".mcp.json")):
+        if ".git" not in path.parts:
+            hits.append({"kind": "mcp-config", "path": str(path), "severity": "fail"})
+    return hits
 
 
 def has_context_root_markers(path: Path) -> bool:
@@ -1499,6 +1959,92 @@ def print_guided_auto_plan(plan: dict[str, object]) -> None:
         print(f"- {field}: {markdown_escape(value)}")
 
 
+def print_manifest_markdown(manifest: list[dict[str, object]]) -> None:
+    if not manifest:
+        return
+    headers = [
+        "path",
+        "kind",
+        "decision",
+        "reason",
+        "destination",
+        "remote",
+    ]
+    print()
+    print("## Migration Manifest Draft")
+    print()
+    print("| " + " | ".join(headers) + " |")
+    print("| " + " | ".join("---" for _ in headers) + " |")
+    for row in manifest:
+        freshness = row.get("remote_freshness") or {}
+        remote = ""
+        if isinstance(freshness, dict):
+            signals = freshness.get("signals") or []
+            if isinstance(signals, list):
+                remote = ", ".join(str(signal) for signal in signals)
+        values = [
+            row.get("path", ""),
+            row.get("kind", ""),
+            row.get("decision", ""),
+            row.get("reason", ""),
+            row.get("destination", ""),
+            remote,
+        ]
+        print("| " + " | ".join(markdown_escape(value) for value in values) + " |")
+
+
+def print_global_runtime_markdown(rows: list[dict[str, object]]) -> None:
+    if not rows:
+        return
+    headers = ["path", "kind", "decision", "reason", "signals"]
+    print()
+    print("## Global Claude Runtime Snapshot")
+    print()
+    print("| " + " | ".join(headers) + " |")
+    print("| " + " | ".join("---" for _ in headers) + " |")
+    for row in rows:
+        values = []
+        for header in headers:
+            value = row.get(header, "")
+            if isinstance(value, list):
+                value = ", ".join(str(item) for item in value)
+            values.append(markdown_escape(value))
+        print("| " + " | ".join(values) + " |")
+
+
+def print_forbidden_scan_markdown(hits: list[dict[str, str]]) -> None:
+    print()
+    print("## Forbidden Path Scan")
+    print()
+    if not hits:
+        print("No forbidden active-path artifacts found.")
+        return
+    headers = ["kind", "severity", "path"]
+    print("| " + " | ".join(headers) + " |")
+    print("| " + " | ".join("---" for _ in headers) + " |")
+    for hit in hits:
+        print("| " + " | ".join(markdown_escape(hit.get(header, "")) for header in headers) + " |")
+
+
+def print_mcp_audit_markdown(rows: list[dict[str, object]]) -> None:
+    if not rows:
+        return
+    headers = ["name", "origin", "transport", "decision", "reason", "risk_signals"]
+    print()
+    print("## MCP Capability Audit")
+    print()
+    print("| " + " | ".join(headers) + " |")
+    print("| " + " | ".join("---" for _ in headers) + " |")
+    for row in rows:
+        values = []
+        for header in headers:
+            value = row.get(header, "")
+            if isinstance(value, list):
+                value = ", ".join(str(item) for item in value)
+            values.append(markdown_escape(value))
+        print("| " + " | ".join(values) + " |")
+
+
 def summarize_plugin_candidates(candidates: object) -> str:
     if not isinstance(candidates, list):
         return ""
@@ -1523,6 +2069,13 @@ def main() -> None:
         else None
     )
     codex_home = resolve_dir(args.codex_home, "--codex-home", must_exist=False)
+    claude_home = resolve_dir(args.claude_home, "--claude-home", must_exist=False)
+    operation_mode = args.operation_mode or (
+        "migrate-full-workspace" if destination else "setup-in-place"
+    )
+    target_posture = args.target_posture or (
+        "codex-native" if destination else "dual-run-current-workspace"
+    )
 
     available_plugins = discover_codex_plugins(codex_home)
     plugin_mappings = load_plugin_mappings()
@@ -1543,14 +2096,59 @@ def main() -> None:
     artifact_output = args.artifact_output or ("detail" if args.format == "json" else "summary")
     artifact_payload = artifact_summary_rows(artifacts) if artifact_output == "summary" else artifacts
     plan = guided_auto_plan(source, destination, rows) if args.guided_auto_plan else {}
+    manifest = (
+        build_migration_manifest(
+            source,
+            destination,
+            rows,
+            operation_mode=operation_mode,
+            target_posture=target_posture,
+        )
+        if args.emit_manifest
+        else []
+    )
+    global_runtime = (
+        global_claude_runtime_snapshot(claude_home)
+        if args.include_global_claude_runtime
+        else []
+    )
+    forbidden_root = (
+        resolve_dir(args.forbidden_scan_root, "--forbidden-scan-root", must_exist=False)
+        if args.forbidden_scan_root
+        else None
+    )
+    forbidden_hits = (
+        forbidden_path_scan(forbidden_root, target_posture=target_posture)
+        if forbidden_root is not None
+        else []
+    )
+    mcp_audit = (
+        mcp_capability_decisions(
+            source_mcp_capabilities(source),
+            target_mcp_baseline(codex_home),
+        )
+        if args.include_mcp_audit
+        else []
+    )
     if args.format == "json":
-        if args.include_artifacts or args.guided_auto_plan:
+        if (
+            args.include_artifacts
+            or args.guided_auto_plan
+            or args.emit_manifest
+            or args.include_global_claude_runtime
+            or args.forbidden_scan_root
+            or args.include_mcp_audit
+        ):
             print(
                 json.dumps(
                     {
                         "guided_auto_plan": plan,
                         "repos": rows,
                         "artifacts": artifact_payload,
+                        "migration_manifest": manifest,
+                        "global_claude_runtime": global_runtime,
+                        "forbidden_path_scan": forbidden_hits,
+                        "mcp_capability_audit": mcp_audit,
                     },
                     indent=2,
                     ensure_ascii=False,
@@ -1561,6 +2159,11 @@ def main() -> None:
     else:
         print_guided_auto_plan(plan)
         print_markdown(rows)
+        print_manifest_markdown(manifest)
+        print_global_runtime_markdown(global_runtime)
+        if args.forbidden_scan_root:
+            print_forbidden_scan_markdown(forbidden_hits)
+        print_mcp_audit_markdown(mcp_audit)
         print_artifact_markdown(artifacts, output=artifact_output)
 
 

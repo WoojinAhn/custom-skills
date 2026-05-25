@@ -109,18 +109,54 @@ Only after this answer, run the inventory command.
    `references/operation-modes.md` for detailed mode, posture, parent-policy,
    and guided-auto semantics.
 2. Run the read-only inventory helper and treat its output as weak review
-   signals, not final include/exclude decisions.
+   signals, not final include/exclude decisions. For non-trivial workspace
+   migrations, include manifest/runtime output:
+
+```bash
+python3 <skill-dir>/scripts/inventory.py \
+  --source <source-root> \
+  --destination <destination-root> \
+  --guided-auto-plan \
+  --emit-manifest \
+  --include-global-claude-runtime \
+  --include-mcp-audit \
+  --format markdown
+```
+
 3. Classify source material: durable instructions, private/local context,
    runtime config, MCP, plugin/skill ecosystem, generated content, stale
    material, and child-repo coverage.
-4. Build the layer model. Keep always-loaded Codex instructions compact and
+4. Write or update a migration manifest before any copy. This is a hard gate
+   for `migrate-full-workspace`: do not run `rsync`, `cp`, or equivalent bulk
+   copy until each relevant repo/artifact has a recorded `migrate`,
+   `already-present`, `defer`, or `exclude` decision. Treat `defer` as "found,
+   not copied, needs a separate decision"; treat `already-present` as "already
+   available in Codex, no workspace copy needed."
+5. Build the layer model. Keep always-loaded Codex instructions compact and
    add explicit parent-policy references only when `inherit-parent` was chosen.
-5. Rewrite `AGENTS.md` natively from intent, not by copying Claude mechanics.
-6. Handle private context, MCP, hooks, slash commands, plugins, and skills as
-   separate audit decisions, not as `AGENTS.md` dumps.
-7. Write an audit using `references/audit-template.md`.
-8. Validate instruction loading with `codex exec` in read-only ephemeral mode.
-9. Record quality evidence and deferred/omitted material.
+6. Rewrite `AGENTS.md` natively from intent, not by copying Claude mechanics.
+7. Handle private context, MCP, hooks, slash commands, plugins, and skills as
+   separate audit decisions, not as `AGENTS.md` dumps. MCP migration is
+   capability re-selection, not config copying: source `.mcp.json`, Claude MCP
+   settings, and existing target MCP registrations are evidence, not target
+   truth.
+8. For `migrate-full-workspace`, run a dry-run preview from the manifest, get
+   confirmation for risky or surprising exclusions, then copy only manifest
+   `migrate` rows. After copy, run the forbidden-path scan before any
+   `codex exec` validation:
+
+```bash
+python3 <skill-dir>/scripts/inventory.py \
+  --source <source-root> \
+  --destination <destination-root> \
+  --forbidden-scan-root <destination-root> \
+  --target-posture codex-native \
+  --format markdown
+```
+
+9. Write an audit using `references/audit-template.md`.
+10. Validate instruction loading with `codex exec` in read-only ephemeral mode.
+11. Record quality evidence and deferred/omitted material.
 
 ## Inventory Commands
 
@@ -181,16 +217,31 @@ A migration is complete only when applicable items are true:
 - `[all]` Target has `AGENTS.md` or an intentional bridge `AGENTS.md`.
 - `[all]` Operation mode is recorded and file changes match it.
 - `[all]` Target posture is recorded and `CLAUDE.md` treatment matches it.
+- `[all]` Manifest decisions are recorded for copied, excluded, deferred, and
+  already-present material.
 - `[all]` Each migrated repo or context directory has an audit record.
 - `[all]` Private/sensitive context is omitted or moved to local private refs.
 - `[all]` Tracked files are preserved, including tracked `.env` files.
 - `[all]` Generated/local state is excluded unless intentionally tracked source.
 - `[all]` MCP setup is explicitly migrated or deferred.
+- `[all]` MCP decisions classify each source/target capability as
+  `already-present`, `codex-native`, `defer`, `omit`, `cleanup-candidate`, or
+  `manual-review`; unauthenticated, credentialed, remote, write-capable, or
+  production MCP servers are not auto-registered.
 - `[all]` `codex exec` read-only validation reports expected active instructions.
 - `[all]` Codex discovery config and oversized instruction risks are checked or
   explicitly marked unavailable.
 - `[all]` Deferred, bridge-only, and omitted material are documented.
 - `[all]` Quality comparison claims have evidence.
+- `[migrate-full-workspace]` A migration manifest was written before copy and
+  the copy command followed it.
+- `[migrate-full-workspace]` Remote freshness was checked or explicitly
+  marked unavailable for Git repos with remotes; behind repos have a
+  `pull-before-copy`, `copy-stale-local-as-is`, `exclude`, or `defer`
+  decision.
+- `[codex-native]` Post-copy forbidden-path scan reports zero active
+  `CLAUDE.md`, `.claude/`, and `.mcp.json` artifacts, unless an explicit
+  bridge exception is documented.
 - `[multi-repo only]` Workspace/global layering is explicit across child repos.
 - `[multi-repo only]` Parent policy mode is recorded; `inherit-parent` child files explicitly reference parent policy.
 - `[multi-repo only]` Child repo include/exclude/defer/copy-only decisions and

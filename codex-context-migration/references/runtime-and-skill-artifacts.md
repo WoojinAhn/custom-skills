@@ -22,6 +22,33 @@ Classify Claude runtime configuration separately from instructions:
 - `SessionStart` or auto-memory behavior: classify durable learning, not the
   Claude-specific loading mechanism.
 
+Use the inventory runtime snapshot when available:
+
+```bash
+python3 <skill>/scripts/inventory.py \
+  --source <source> \
+  --include-global-claude-runtime \
+  --format markdown
+```
+
+The snapshot is a decision aid, not approval to migrate runtime behavior. It
+should list whether global Claude settings, hooks, slash commands, plugins, and
+skills were discovered so the audit can say whether each category was reviewed
+or missed.
+
+## Decision Vocabulary
+
+Use user-friendly status words in migration notes:
+
+- `migrate`: move or rewrite into Codex-native instructions/config now.
+- `exclude`: intentionally leave out of the target.
+- `defer`: do not migrate in this pass; keep a note so it can be discussed
+  later. This is not a silent omission.
+- `already-present`: the capability already exists in the Codex target
+  environment, so source files usually should not be copied.
+- `needs-review`: the artifact may matter, but the source/runtime assumptions
+  are not clear enough for automatic migration.
+
 ## Private Context
 
 Private context may be migrated, but never into repo instructions.
@@ -47,7 +74,12 @@ Recommended pattern:
 
 ## MCP Handling
 
-Do not automatically convert `.mcp.json` into Codex MCP registration.
+Do not automatically convert `.mcp.json`, Claude MCP settings, or existing
+Codex MCP registrations into target Codex MCP config.
+
+MCP migration is capability re-selection, not config copying. Treat every MCP
+source as evidence about a desired capability, then choose the Codex-native
+target behavior.
 
 Audit first:
 
@@ -57,9 +89,39 @@ Audit first:
 - Is production read-only?
 - Are credentials/cookies local?
 - Is the MCP server needed for normal Codex work?
+- Is an equivalent Codex runtime, bundled plugin, or already-registered MCP
+  already present?
+- Is the target MCP unauthenticated, failing, or stale?
 
 Register only after user approval when write access or production data is
 involved.
+
+Use the MCP audit when available:
+
+```bash
+python3 <skill>/scripts/inventory.py \
+  --source <source> \
+  --include-mcp-audit \
+  --format markdown
+```
+
+Decision vocabulary:
+
+- `already-present`: Codex already provides the capability; do not copy source
+  MCP config.
+- `codex-native`: Useful capability that can be intentionally registered in
+  Codex.
+- `defer`: Auth, credentials, remote data scope, write capability, production
+  access, or unclear ownership requires a separate decision.
+- `cleanup-candidate`: Active target MCP appears unauthenticated, stale, or
+  unused.
+- `manual-review`: Capability may be useful, but the target choice is not
+  obvious.
+- `omit`: No durable use case remains.
+
+Keep MCP and plugin audits aligned, but manage them separately. MCP changes use
+`codex mcp ...`; plugin changes use `codex plugin ...`. Verify command support
+with `--help` before suggesting exact flags.
 
 ## Skill Artifacts
 
@@ -95,6 +157,17 @@ Validate:
 - Scripts can run in the target environment or are clearly marked as
   references.
 
+Distinguish source repositories from installed runtime skills:
+
+- A source repo such as `custom-skills` may be product/workspace material and
+  should be classified by purpose, not excluded only because it contains skills.
+- Installed runtime copies under Claude plugin/cache/skill directories are
+  runtime artifacts. They should normally be `already-present`, `rewrite`, or
+  `defer`, not blindly copied into the active Codex workspace.
+- When a source repo is copied, run the remote freshness gate first. A stale
+  source can make the destination miss tests, scripts, and updated skill
+  guidance even when the copy itself succeeds.
+
 ## Claude-Native Compatibility
 
 Classify Claude-native skills before importing:
@@ -121,3 +194,23 @@ Map behavior, not spelling:
 If the imported skill would need production write access, real credentials,
 private people data, or unavailable Claude hooks, ask whether to keep it as a
 private reference instead of an active skill.
+
+## Plugin Decision Heuristics
+
+Prefer classification over file copying:
+
+| Source signal | Default decision | Reason |
+| --- | --- | --- |
+| Plugin/skill already installed in Codex | `already-present` | Avoid stale duplicate copies |
+| Claude hook, permission matcher, or SessionStart behavior | `defer` | Executable behavior needs explicit review |
+| Slash command with reusable workflow | `rewrite` | Convert intent into a Codex skill/procedure |
+| Slash command tied to Claude-only state | `defer` or `omit` | Runtime assumptions may not hold |
+| MCP server with credentials/write scope | `defer` | Requires user approval and target config review |
+| MCP already provided by Codex runtime or target baseline | `already-present` | Avoid duplicate or stale registrations |
+| Target MCP is unauthenticated or failing | `cleanup-candidate` or `defer` | Do not preserve broken runtime state silently |
+| Source repo that builds user-facing/product functionality | `migrate` or `include-native` | Purpose is not Claude runtime itself |
+| Repo whose primary purpose is Claude config, hooks, relay, or plugin cache | `exclude` or `defer` | Claude-native operational code |
+
+Evidence must include what was checked: settings keys, hook names, command
+names, plugin names, skill package names, and whether the target Codex
+environment already provides an equivalent capability.

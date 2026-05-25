@@ -26,6 +26,54 @@ Destination root is required for `migrate-full-workspace` and `context-only`.
 It is not required for `setup-in-place` unless the user wants audit/output
 files written elsewhere.
 
+## Mode Contracts
+
+Treat these as completion gates, not suggestions:
+
+| Mode | Required artifacts | Forbidden artifacts |
+| --- | --- | --- |
+| `setup-in-place` | Inventory, audit, before/after status, updated local `AGENTS.md` where approved | Unapproved source/destination copy |
+| `context-only` | Inventory, manifest, audit, copied/rewritten context files | Ordinary repo/code copy |
+| `migrate-full-workspace` | Inventory, manifest, dry-run preview, copy evidence, forbidden-path scan, count delta, targeted `codex exec` | Undocumented `CLAUDE.md`, `.claude/`, `.mcp.json`, runtime hooks in Codex-native active paths |
+
+For `migrate-full-workspace`, a destination that only contains context files is
+not complete. For `context-only`, copying code repositories is out of scope.
+
+## Manifest Gate
+
+Before any bulk copy, write a manifest row for each source repo or runtime
+artifact. Minimum fields:
+
+- `path`
+- `purpose`
+- `kind`
+- `decision`: `migrate`, `already-present`, `defer`, or `exclude`
+- `reason`
+- `destination`
+- `evidence-source`
+
+The copy command must be derived from `decision=migrate` rows. Do not run
+`rsync`, `cp`, or equivalent bulk copy directly from memory after reviewing
+inventory output.
+
+`defer` means "found, not copied, needs a separate decision." `already-present`
+means "already available in Codex, no workspace copy needed."
+
+## Remote Freshness Gate
+
+For Git repos with remotes, check whether local HEAD is behind the upstream
+before full-workspace copy. Behind repos require one of these explicit
+decisions:
+
+- `pull-before-copy`
+- `copy-stale-local-as-is`
+- `exclude`
+- `defer`
+
+Record HEAD, upstream, ahead/behind counts, and the decision in the manifest or
+audit. A faithful copy of stale local state is valid only when it is visible
+and intentional.
+
 ## AGENTS.md Trust Mode
 
 - `trusted`: source `AGENTS.md` is user-authored and may be used as source.
@@ -74,21 +122,28 @@ or outside the intended migration scope.
 ## Guided-Auto Decision Tree
 
 1. Run inventory with `--guided-auto-plan`.
-2. Show inferred operation mode, target posture, trust mode, parent policy,
-   child selection, destination path relation, and blocked auto actions.
-3. Accept safe defaults only after showing them to the user.
-4. Ask for confirmations flagged by the plan:
+2. Also emit a draft manifest and runtime capability audit for
+   destination-based or multi-repo migrations:
+   `--emit-manifest --include-global-claude-runtime --include-mcp-audit`.
+3. Show inferred operation mode, target posture, trust mode, parent policy,
+   child selection, destination path relation, blocked auto actions, and
+   manifest decision counts.
+4. Accept safe defaults only after showing them to the user.
+5. Ask for confirmations flagged by the plan:
    - target posture
    - `AGENTS.md` trust mode when source `AGENTS.md` exists
    - child repo plan
    - private/local context disposition
    - runtime config disposition
    - MCP write/production access
+   - MCP auth failures, credentials, remote data scope, or cleanup candidates
    - plugin ecosystem decisions
    - destination overlap or merge behavior
-5. Never silently migrate `CLAUDE.local.md`, personal memory, hooks,
+6. Never silently migrate `CLAUDE.local.md`, personal memory, hooks,
    permissions, MCP write/production access, third-party bridges, or retained
    Claude plugins.
-6. Prefer Codex-native plugin candidates when available, but ask before
+7. Prefer Codex-native plugin candidates when available, but ask before
    retaining Claude official plugins or bridges.
-7. Use `selected` child repo handling by default for multi-repo workspaces.
+8. Use `selected` child repo handling by default for multi-repo workspaces.
+9. After copy, run the forbidden-path scan and fail closed on Codex-native
+   active-path hits until they are removed or explicitly bridged.

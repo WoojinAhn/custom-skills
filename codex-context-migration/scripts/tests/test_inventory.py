@@ -1,5 +1,6 @@
 import importlib.util
 import json
+import subprocess
 import sys
 from pathlib import Path
 
@@ -9,6 +10,32 @@ SPEC = importlib.util.spec_from_file_location("inventory", SCRIPT_PATH)
 inventory = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = inventory
 SPEC.loader.exec_module(inventory)
+
+
+def run_git(cwd: Path, *args: str) -> None:
+    subprocess.run(
+        ["git", *args],
+        cwd=cwd,
+        check=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+
+
+def commit_file(repo: Path, name: str, content: str) -> None:
+    (repo / name).write_text(content, encoding="utf-8")
+    run_git(repo, "add", name)
+    run_git(
+        repo,
+        "-c",
+        "user.name=Test",
+        "-c",
+        "user.email=test@example.com",
+        "commit",
+        "-m",
+        f"add {name}",
+    )
 
 
 def test_inventory_non_git_root_creates_pseudo_row(tmp_path):
@@ -412,3 +439,240 @@ def test_artifact_summary_counts_by_type_ecosystem_provider(tmp_path, capsys):
     output = capsys.readouterr().out
     assert "| plugin | codex | openai-bundled | 1 |" in output
     assert "| skill | unknown |  | 1 |" in output
+
+
+def test_git_remote_freshness_detects_behind_after_fetch(tmp_path):
+    remote = tmp_path / "remote.git"
+    run_git(tmp_path, "init", "--bare", str(remote))
+
+    repo = tmp_path / "repo"
+    run_git(tmp_path, "clone", str(remote), str(repo))
+    commit_file(repo, "README.md", "initial\n")
+    run_git(repo, "push", "-u", "origin", "HEAD:master")
+
+    other = tmp_path / "other"
+    run_git(tmp_path, "clone", str(remote), str(other))
+    commit_file(other, "CHANGE.md", "remote change\n")
+    run_git(other, "push")
+
+    freshness = inventory.git_remote_freshness(repo)
+
+    assert freshness["has_remote"] is True
+    assert freshness["branch"] in {"master", "main"}
+    assert freshness["upstream"] == "origin/master"
+    assert freshness["behind"] == 1
+    assert freshness["ahead"] == 0
+    assert freshness["decision_required"] is True
+    assert "remote-behind" in freshness["signals"]
+
+
+def test_git_remote_freshness_no_remote_is_not_blocking(tmp_path):
+    repo = tmp_path / "repo"
+    run_git(tmp_path, "init", str(repo))
+    commit_file(repo, "README.md", "initial\n")
+
+    freshness = inventory.git_remote_freshness(repo)
+
+    assert freshness["has_remote"] is False
+    assert freshness["decision_required"] is False
+    assert freshness["signals"] == ["remote-not-configured"]
+
+
+def test_manifest_excludes_claude_native_and_migrates_product_repo(tmp_path):
+    source = tmp_path / "source"
+    destination = tmp_path / "dest"
+    source.mkdir()
+    destination.mkdir()
+
+    claude_config = source / "claude-config"
+    claude_config.mkdir()
+    (claude_config / ".git").mkdir()
+    (claude_config / "settings.json").write_text("{}", encoding="utf-8")
+
+    app = source / "backlog-idea-app"
+    app.mkdir()
+    (app / ".git").mkdir()
+    (app / "README.md").write_text(
+        "Local web app that calls claude --print as an implementation detail.\n",
+        encoding="utf-8",
+    )
+    (app / "CLAUDE.md").write_text("Project guidance.\n", encoding="utf-8")
+
+    rows = inventory.inventory(source, destination, 5, {})
+    manifest = inventory.build_migration_manifest(
+        source,
+        destination,
+        rows,
+        operation_mode="migrate-full-workspace",
+        target_posture="codex-native",
+    )
+    by_path = {row["path"]: row for row in manifest}
+
+    assert by_path["claude-config"]["decision"] == "exclude"
+    assert by_path["claude-config"]["kind"] == "claude-runtime-tool"
+    assert "claude-native" in by_path["claude-config"]["reason"]
+
+    assert by_path["backlog-idea-app"]["decision"] == "migrate"
+    assert by_path["backlog-idea-app"]["kind"] == "product-using-claude-cli"
+    assert by_path["backlog-idea-app"]["destination"] == str(
+        destination / "backlog-idea-app"
+    )
+
+
+def test_forbidden_path_scan_fails_codex_native_active_paths(tmp_path):
+    dest = tmp_path / "dest"
+    repo = dest / "repo"
+    claude_dir = repo / ".claude"
+    claude_dir.mkdir(parents=True)
+    (repo / "CLAUDE.md").write_text("legacy\n", encoding="utf-8")
+    (claude_dir / "settings.json").write_text("{}", encoding="utf-8")
+    (repo / ".mcp.json").write_text("{}", encoding="utf-8")
+
+    hits = inventory.forbidden_path_scan(dest, target_posture="codex-native")
+
+    assert [hit["kind"] for hit in hits] == [
+        "claude-md",
+        "claude-runtime-dir",
+        "mcp-config",
+    ]
+    assert all(hit["severity"] == "fail" for hit in hits)
+
+
+def test_forbidden_path_scan_allows_claude_md_for_dual_run(tmp_path):
+    dest = tmp_path / "dest"
+    dest.mkdir()
+    (dest / "CLAUDE.md").write_text("legacy\n", encoding="utf-8")
+
+    hits = inventory.forbidden_path_scan(dest, target_posture="dual-run-current-workspace")
+
+    assert hits == []
+
+
+def test_global_claude_runtime_snapshot_classifies_hooks_commands_plugins_and_skills(tmp_path):
+    claude_home = tmp_path / ".claude"
+    commands = claude_home / "commands"
+    plugins = claude_home / "plugins"
+    skills = claude_home / "skills"
+    commands.mkdir(parents=True)
+    plugins.mkdir()
+    skills.mkdir()
+    (claude_home / "settings.json").write_text(
+        json.dumps(
+            {
+                "hooks": {"SessionStart": [{"hooks": [{"type": "command"}]}]},
+                "enabledPlugins": {"superpowers@claude-plugins-official": True},
+            }
+        ),
+        encoding="utf-8",
+    )
+    (claude_home / "settings.local.json").write_text(
+        json.dumps({"permissions": {"allow": ["Bash(git status:*)"]}}),
+        encoding="utf-8",
+    )
+    (commands / "lanes.md").write_text("/lanes\n", encoding="utf-8")
+    (plugins / "installed_plugins.json").write_text("{}", encoding="utf-8")
+    (skills / "custom").mkdir()
+    (skills / "custom" / "SKILL.md").write_text(
+        "---\nname: custom\n---\n", encoding="utf-8"
+    )
+
+    rows = inventory.global_claude_runtime_snapshot(claude_home)
+    by_path = {row["path"]: row for row in rows}
+
+    assert by_path["settings.json"]["kind"] == "runtime-config"
+    assert by_path["settings.json"]["decision"] == "defer"
+    assert "hooks" in by_path["settings.json"]["signals"]
+    assert "enabled-plugins" in by_path["settings.json"]["signals"]
+    assert by_path["commands/lanes.md"]["kind"] == "claude-command"
+    assert by_path["plugins/installed_plugins.json"]["kind"] == "plugin-runtime-state"
+    assert by_path["skills/custom/SKILL.md"]["kind"] == "skill-source"
+
+
+def test_plugin_decisions_mark_already_present_candidates():
+    candidates = [
+        {
+            "source": "superpowers@claude-plugins-official",
+            "candidate": "superpowers@openai-curated",
+            "candidate_status": "available",
+            "confidence": "same-name",
+        },
+        {
+            "source": "mcp-server-dev@claude-plugins-official",
+            "candidate": "openai-developers@openai-curated",
+            "candidate_status": "not-found",
+            "confidence": "research",
+        },
+    ]
+
+    decisions = inventory.plugin_migration_decisions(candidates)
+    by_source = {row["source"]: row for row in decisions}
+
+    assert (
+        by_source["superpowers@claude-plugins-official"]["decision"]
+        == "already-present"
+    )
+    assert (
+        by_source["superpowers@claude-plugins-official"]["reason"]
+        == "Codex candidate is available"
+    )
+    assert by_source["mcp-server-dev@claude-plugins-official"]["decision"] == "defer"
+
+
+def test_mcp_target_baseline_marks_codex_runtime_and_unauthenticated_cleanup(tmp_path):
+    codex_home = tmp_path / ".codex"
+    codex_home.mkdir()
+    (codex_home / "config.toml").write_text(
+        """
+        [mcp_servers.node_repl]
+        command = "/Applications/Codex.app/Contents/Resources/node_repl"
+
+        [mcp_servers.notion]
+        url = "https://mcp.notion.com/mcp"
+
+        [mcp_servers.notebooklm-mcp]
+        command = "notebooklm-mcp"
+        """,
+        encoding="utf-8",
+    )
+
+    rows = inventory.target_mcp_baseline(codex_home)
+    decisions = inventory.mcp_capability_decisions([], rows)
+    by_name = {row["name"]: row for row in decisions}
+
+    assert by_name["node_repl"]["decision"] == "already-present"
+    assert by_name["node_repl"]["reason"] == "Codex target runtime baseline"
+    assert by_name["notion"]["decision"] == "cleanup-candidate"
+    assert "auth review" in by_name["notion"]["reason"]
+    assert by_name["notebooklm-mcp"]["decision"] == "manual-review"
+
+
+def test_mcp_source_config_is_capability_review_not_direct_copy(tmp_path):
+    source = tmp_path / "source"
+    source.mkdir()
+    (source / ".mcp.json").write_text(
+        json.dumps(
+            {
+                "mcpServers": {
+                    "context7": {
+                        "command": "npx",
+                        "args": ["-y", "@upstash/context7-mcp"],
+                    },
+                    "prod-writer": {
+                        "url": "https://prod.example.com/mcp",
+                        "env": {"API_TOKEN": "secret"},
+                    },
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    rows = inventory.source_mcp_capabilities(source)
+    decisions = inventory.mcp_capability_decisions(rows, [])
+    by_name = {row["name"]: row for row in decisions}
+
+    assert by_name["context7"]["decision"] == "codex-native"
+    assert by_name["context7"]["reason"] == "Known useful Codex MCP capability"
+    assert by_name["prod-writer"]["decision"] == "defer"
+    assert "credentials or remote access" in by_name["prod-writer"]["reason"]
+    assert by_name["prod-writer"]["origin"] == "source"
