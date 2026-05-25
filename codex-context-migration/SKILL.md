@@ -226,9 +226,10 @@ A migration is complete only when applicable items are true:
 - `[all]` Generated/local state is excluded unless intentionally tracked source.
 - `[all]` MCP setup is explicitly migrated or deferred.
 - `[all]` MCP decisions classify each source/target capability as
-  `already-present`, `codex-native`, `defer`, `omit`, `cleanup-candidate`, or
-  `manual-review`; unauthenticated, credentialed, remote, write-capable, or
-  production MCP servers are not auto-registered.
+  `already-present`, `defer`, `omit`, `cleanup-candidate`, or `manual-review`;
+  optional MCP servers are `already-present` only when found in the target
+  baseline or provided by the Codex runtime. Unauthenticated, credentialed,
+  remote, write-capable, or production MCP servers are not auto-registered.
 - `[all]` `codex exec` read-only validation reports expected active instructions.
 - `[all]` Codex discovery config and oversized instruction risks are checked or
   explicitly marked unavailable.

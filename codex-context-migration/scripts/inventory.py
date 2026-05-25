@@ -102,7 +102,6 @@ JSON_PLUGIN_CONTEXT_KEYS = (
 )
 PLUGIN_MAPPINGS_PATH = Path(__file__).resolve().parents[1] / "references" / "plugin-mappings.json"
 CODEX_RUNTIME_MCP_NAMES = {"node_repl"}
-CODEX_NATIVE_MCP_NAMES = {"context7", "playwright", "magic", "sequential-thinking"}
 
 
 @dataclass(frozen=True)
@@ -1243,14 +1242,12 @@ def mcp_decision(row: dict[str, object], target_names: set[str]) -> tuple[str, s
         return "already-present", "Codex target runtime baseline"
     if origin == "target" and name == "notion":
         return "cleanup-candidate", "remote MCP needs auth review before keeping"
-    if origin == "target" and name in CODEX_NATIVE_MCP_NAMES:
+    if origin == "target":
         return "already-present", "Codex-managed MCP registration already present"
     if "credentials" in risk_signals or "write-or-production-risk" in risk_signals:
         return "defer", "MCP uses credentials or remote access requiring review"
     if origin == "source" and name in target_names:
         return "already-present", "Target already has an MCP with the same capability name"
-    if name in CODEX_NATIVE_MCP_NAMES:
-        return "codex-native", "Known useful Codex MCP capability"
     if transport == "remote-url":
         return "defer", "remote MCP requires auth and data-scope review"
     return "manual-review", "MCP capability requires explicit target decision"

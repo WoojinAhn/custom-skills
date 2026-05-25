@@ -108,15 +108,15 @@ python3 <skill>/scripts/inventory.py \
 Decision vocabulary:
 
 - `already-present`: Codex already provides the capability; do not copy source
-  MCP config.
-- `codex-native`: Useful capability that can be intentionally registered in
-  Codex.
+  MCP config. For optional MCPs, this requires the target baseline to actually
+  contain the MCP or the Codex runtime to provide it.
 - `defer`: Auth, credentials, remote data scope, write capability, production
   access, or unclear ownership requires a separate decision.
 - `cleanup-candidate`: Active target MCP appears unauthenticated, stale, or
   unused.
 - `manual-review`: Capability may be useful, but the target choice is not
-  obvious.
+  obvious. Source-only optional MCPs belong here until the user chooses to
+  register them.
 - `omit`: No durable use case remains.
 
 Keep MCP and plugin audits aligned, but manage them separately. MCP changes use
@@ -127,8 +127,10 @@ Do not infer MCP ownership from marketplace catalog presence. A Claude
 marketplace entry such as `context7@claude-plugins-official` only proves the
 plugin is discoverable in that marketplace; it does not prove the active MCP is
 Claude-managed or installed. If `[mcp_servers.context7]` exists in Codex config,
-classify the active capability as Codex-managed MCP unless the actual installed
-plugin config says otherwise. Retained MCPs should be re-registered or
+classify that active capability as Codex-managed MCP unless the actual installed
+plugin config says otherwise. If Context7 only appears in source config or a
+marketplace catalog, do not mark it `already-present`. Retained MCPs should be
+re-registered or
 documented through `codex mcp add/remove/get/list`, not by installing Claude
 marketplace plugins.
 

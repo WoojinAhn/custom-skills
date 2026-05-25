@@ -149,7 +149,7 @@ into Codex config.
    baseline.
 2. Classify each capability by purpose, transport, auth state, credentials,
    write/production risk, and Codex-native equivalent.
-3. Prefer target runtime or Codex-native MCPs when already present.
+3. Prefer target runtime or already-registered target MCPs when present.
 4. Default unauthenticated, failing, credentialed, remote, write-capable, or
    production MCP servers to `defer` unless the user approves them.
 5. Mark target MCPs with no clear use case as `cleanup-candidate`, not
@@ -158,8 +158,10 @@ into Codex config.
    with separate commands.
 7. Do not treat a Claude marketplace entry as an installed MCP/plugin. For
    example, `context7@claude-plugins-official` in a marketplace cache can
-   coexist with an active Codex `[mcp_servers.context7]`; the active MCP should
-   be managed through `codex mcp ...`.
+   coexist with an active Codex `[mcp_servers.context7]`; only the active target
+   MCP is `already-present` and should be managed through `codex mcp ...`.
+   Source-only optional MCPs remain `manual-review` until the user chooses to
+   register them.
 
 ## Native Rewrite Rubric
 

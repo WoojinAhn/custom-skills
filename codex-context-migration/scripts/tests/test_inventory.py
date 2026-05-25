@@ -643,10 +643,11 @@ def test_mcp_target_baseline_marks_codex_runtime_and_unauthenticated_cleanup(tmp
     assert by_name["node_repl"]["reason"] == "Codex target runtime baseline"
     assert by_name["notion"]["decision"] == "cleanup-candidate"
     assert "auth review" in by_name["notion"]["reason"]
-    assert by_name["notebooklm-mcp"]["decision"] == "manual-review"
+    assert by_name["notebooklm-mcp"]["decision"] == "already-present"
+    assert by_name["notebooklm-mcp"]["managed_by"] == "codex-mcp"
 
 
-def test_mcp_source_config_is_capability_review_not_direct_copy(tmp_path):
+def test_source_only_context7_is_candidate_not_already_present(tmp_path):
     source = tmp_path / "source"
     source.mkdir()
     (source / ".mcp.json").write_text(
@@ -671,8 +672,8 @@ def test_mcp_source_config_is_capability_review_not_direct_copy(tmp_path):
     decisions = inventory.mcp_capability_decisions(rows, [])
     by_name = {row["name"]: row for row in decisions}
 
-    assert by_name["context7"]["decision"] == "codex-native"
-    assert by_name["context7"]["reason"] == "Known useful Codex MCP capability"
+    assert by_name["context7"]["decision"] == "manual-review"
+    assert "requires explicit target decision" in by_name["context7"]["reason"]
     assert by_name["prod-writer"]["decision"] == "defer"
     assert "credentials or remote access" in by_name["prod-writer"]["reason"]
     assert by_name["prod-writer"]["origin"] == "source"
@@ -718,3 +719,39 @@ def test_context7_codex_mcp_is_not_reclassified_by_claude_marketplace_entry(tmp_
     assert by_name["context7"]["managed_by"] == "codex-mcp"
     assert by_name["context7"]["decision"] == "already-present"
     assert "Claude" not in by_name["context7"]["reason"]
+
+
+def test_matching_target_baseline_makes_source_mcp_already_present(tmp_path):
+    source = tmp_path / "source"
+    codex_home = tmp_path / ".codex"
+    source.mkdir()
+    codex_home.mkdir()
+    (source / ".mcp.json").write_text(
+        json.dumps(
+            {
+                "mcpServers": {
+                    "context7": {
+                        "command": "npx",
+                        "args": ["-y", "@upstash/context7-mcp"],
+                    }
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    (codex_home / "config.toml").write_text(
+        """
+        [mcp_servers.context7]
+        command = "npx"
+        args = ["-y", "@upstash/context7-mcp"]
+        """,
+        encoding="utf-8",
+    )
+
+    source_rows = inventory.source_mcp_capabilities(source)
+    target_rows = inventory.target_mcp_baseline(codex_home)
+    decisions = inventory.mcp_capability_decisions(source_rows, target_rows)
+    context7_decisions = [row for row in decisions if row["name"] == "context7"]
+
+    assert {row["origin"] for row in context7_decisions} == {"source", "target"}
+    assert all(row["decision"] == "already-present" for row in context7_decisions)

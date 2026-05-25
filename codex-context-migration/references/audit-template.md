@@ -101,7 +101,7 @@ Claude MCP settings, and existing target MCP registrations are evidence only.
 
 | MCP | Origin | Transport | Auth state | Risk | Codex-native equivalent | Decision | Evidence |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `context7` | source / target | stdio-command | unsupported / n/a | low | `context7` | codex-native / already-present | If target config has `[mcp_servers.context7]`, record as Codex-managed even when a Claude marketplace entry exists |
+| `context7` | source / target | stdio-command | unsupported / n/a | low | optional MCP | manual-review / already-present | Mark already-present only when target config has `[mcp_servers.context7]`; Claude marketplace catalog presence is not enough |
 | `node_repl` | target | stdio-command | unsupported | Codex runtime | Codex app runtime | already-present |  |
 | `notion` | target | remote-url | not logged in | auth/external data | none / Notion MCP | cleanup-candidate / defer |  |
 | `prod-writer` | source | remote-url | token/env | credentials/write/production | none known | defer |  |
