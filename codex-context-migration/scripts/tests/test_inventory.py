@@ -478,18 +478,22 @@ def test_git_remote_freshness_no_remote_is_not_blocking(tmp_path):
     assert freshness["signals"] == ["remote-not-configured"]
 
 
-def test_manifest_excludes_claude_native_and_migrates_product_repo(tmp_path):
+def test_manifest_excludes_runtime_tool_and_migrates_product_repo(tmp_path):
     source = tmp_path / "source"
     destination = tmp_path / "dest"
     source.mkdir()
     destination.mkdir()
 
-    claude_config = source / "claude-config"
-    claude_config.mkdir()
-    (claude_config / ".git").mkdir()
-    (claude_config / "settings.json").write_text("{}", encoding="utf-8")
+    runtime_tool = source / "agent-config-sync-repo"
+    runtime_tool.mkdir()
+    (runtime_tool / ".git").mkdir()
+    (runtime_tool / "settings.json").write_text("{}", encoding="utf-8")
+    (runtime_tool / "README.md").write_text(
+        "Claude configuration sync tool for hooks and settings.\n",
+        encoding="utf-8",
+    )
 
-    app = source / "backlog-idea-app"
+    app = source / "product-app-using-agent-cli"
     app.mkdir()
     (app / ".git").mkdir()
     (app / "README.md").write_text(
@@ -508,15 +512,45 @@ def test_manifest_excludes_claude_native_and_migrates_product_repo(tmp_path):
     )
     by_path = {row["path"]: row for row in manifest}
 
-    assert by_path["claude-config"]["decision"] == "exclude"
-    assert by_path["claude-config"]["kind"] == "claude-runtime-tool"
-    assert "claude-native" in by_path["claude-config"]["reason"]
+    assert by_path["agent-config-sync-repo"]["decision"] == "exclude"
+    assert by_path["agent-config-sync-repo"]["kind"] == "claude-runtime-tool"
+    assert "claude-native" in by_path["agent-config-sync-repo"]["reason"]
 
-    assert by_path["backlog-idea-app"]["decision"] == "migrate"
-    assert by_path["backlog-idea-app"]["kind"] == "product-using-claude-cli"
-    assert by_path["backlog-idea-app"]["destination"] == str(
-        destination / "backlog-idea-app"
+    assert by_path["product-app-using-agent-cli"]["decision"] == "migrate"
+    assert by_path["product-app-using-agent-cli"]["kind"] == "product-using-claude-cli"
+    assert by_path["product-app-using-agent-cli"]["destination"] == str(
+        destination / "product-app-using-agent-cli"
     )
+
+
+def test_skill_source_repo_is_detected_structurally_not_by_name(tmp_path):
+    source = tmp_path / "source"
+    destination = tmp_path / "dest"
+    source.mkdir()
+    destination.mkdir()
+    skill_repo = source / "migration-toolkit"
+    skill_repo.mkdir()
+    (skill_repo / ".git").mkdir()
+    skill_dir = skill_repo / "codex-context-migration"
+    skill_dir.mkdir()
+    (skill_dir / "SKILL.md").write_text(
+        "---\nname: codex-context-migration\n---\n", encoding="utf-8"
+    )
+    (skill_repo / "README.md").write_text(
+        "Reusable Codex skill source repository.\n", encoding="utf-8"
+    )
+
+    rows = inventory.inventory(source, destination, 5, {})
+    manifest = inventory.build_migration_manifest(
+        source,
+        destination,
+        rows,
+        operation_mode="migrate-full-workspace",
+        target_posture="codex-native",
+    )
+    by_path = {row["path"]: row for row in manifest}
+
+    assert by_path["migration-toolkit"]["kind"] == "skill-source"
 
 
 def test_forbidden_path_scan_fails_codex_native_active_paths(tmp_path):
@@ -618,7 +652,7 @@ def test_plugin_decisions_mark_already_present_candidates():
     assert by_source["mcp-server-dev@claude-plugins-official"]["decision"] == "defer"
 
 
-def test_mcp_target_baseline_marks_codex_runtime_and_unauthenticated_cleanup(tmp_path):
+def test_mcp_target_baseline_marks_runtime_and_remote_review(tmp_path):
     codex_home = tmp_path / ".codex"
     codex_home.mkdir()
     (codex_home / "config.toml").write_text(
@@ -626,8 +660,8 @@ def test_mcp_target_baseline_marks_codex_runtime_and_unauthenticated_cleanup(tmp
         [mcp_servers.node_repl]
         command = "/Applications/Codex.app/Contents/Resources/node_repl"
 
-        [mcp_servers.notion]
-        url = "https://mcp.notion.com/mcp"
+        [mcp_servers.remote-notes]
+        url = "https://mcp.example.com/mcp"
 
         [mcp_servers.notebooklm-mcp]
         command = "notebooklm-mcp"
@@ -641,8 +675,8 @@ def test_mcp_target_baseline_marks_codex_runtime_and_unauthenticated_cleanup(tmp
 
     assert by_name["node_repl"]["decision"] == "already-present"
     assert by_name["node_repl"]["reason"] == "Codex target runtime baseline"
-    assert by_name["notion"]["decision"] == "cleanup-candidate"
-    assert "auth review" in by_name["notion"]["reason"]
+    assert by_name["remote-notes"]["decision"] == "defer"
+    assert "remote MCP" in by_name["remote-notes"]["reason"]
     assert by_name["notebooklm-mcp"]["decision"] == "already-present"
     assert by_name["notebooklm-mcp"]["managed_by"] == "codex-mcp"
 

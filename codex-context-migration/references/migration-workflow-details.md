@@ -43,8 +43,8 @@ Good `exclude` or `defer` candidates:
 
 - Archived, stale, unrelated, vendored, generated, sample, or throwaway repos.
 - Private experiments or sensitive operational context.
-- Claude-native config/tooling repos such as `claude-config`, settings sync,
-  slash-command collections, Claude setup repos, and Claude skill/plugin repos.
+- Agent-native config/tooling repos such as settings sync, slash-command
+  collections, setup repos, and skill/plugin repos.
 - Repos whose useful context is mostly hooks, slash commands, session mechanics,
   or unavailable Claude-only runtime behavior.
 
@@ -69,16 +69,14 @@ Do not classify repositories by string matching alone. Use this procedure:
 
 Examples:
 
-- `backlog-idea-app`: product repo using `claude --print`; review/retain
+- Product app using an agent CLI as an implementation detail: review/retain
   unless the product itself is out of scope.
-- `custom-skills`: skill source repo; retain as source material, but do not
-  install runtime skills unless requested.
-- `ai-tools-radar`: ecosystem/catalog repo; retain when the catalog remains
-  useful.
-- `claude-config`: Claude runtime/config sync repo; exclude or defer unless the
-  user explicitly opts in.
-- `tab-labeler`: tool whose purpose is Claude terminal/session behavior;
-  exclude or defer for Codex-native workspace migration.
+- Skill source repo: retain as source material, but do not install runtime
+  skills unless requested.
+- Ecosystem/catalog repo: retain when the catalog remains useful.
+- Agent runtime/config sync repo: exclude or defer unless the user explicitly
+  opts in.
+- Agent session helper: exclude or defer for Codex-native workspace migration.
 
 ## Layer Model
 

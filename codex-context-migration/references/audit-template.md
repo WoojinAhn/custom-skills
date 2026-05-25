@@ -60,8 +60,8 @@ bulk copy for `migrate-full-workspace`.
 | Path | Kind | Remote state | Decision | Reason | Evidence |
 | --- | --- | --- | --- | --- | --- |
 | `example-repo` | `product-repo` | `fresh` / `behind` / `no-remote` | migrate / exclude / defer / already-present |  |  |
-| `claude-config` | `claude-native-repo` |  | exclude / defer | Claude runtime/config repository |  |
-| `custom-skills` | `skill-source-repo` |  | migrate / defer | Product/source material, not installed runtime copy |  |
+| `agent-config-sync-repo` | `agent-runtime-tool` |  | exclude / defer | Agent runtime/config repository |  |
+| `skill-source-repo` | `skill-source-repo` |  | migrate / defer | Source material, not installed runtime copy |  |
 
 Manifest summary:
 
@@ -103,7 +103,7 @@ Claude MCP settings, and existing target MCP registrations are evidence only.
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | `context7` | source / target | stdio-command | unsupported / n/a | low | optional MCP | manual-review / already-present | Mark already-present only when target config has `[mcp_servers.context7]`; Claude marketplace catalog presence is not enough |
 | `node_repl` | target | stdio-command | unsupported | Codex runtime | Codex app runtime | already-present |  |
-| `notion` | target | remote-url | not logged in | auth/external data | none / Notion MCP | cleanup-candidate / defer |  |
+| `remote-notes` | target | remote-url | not logged in / unknown | auth/external data | none / reviewed MCP | cleanup-candidate / defer |  |
 | `prod-writer` | source | remote-url | token/env | credentials/write/production | none known | defer |  |
 
 MCP summary:
@@ -151,7 +151,7 @@ availability and behavior before choosing a replacement.
 | --- | --- | --- | --- |
 | `example-repo` | `CLAUDE.md`, no `AGENTS.md` | `include-native` | Durable repo facts are concise |
 | `current-claude-repo` | active Claude workspace | `include-dual-run` | Preserve `CLAUDE.md`; add Codex entry point |
-| `claude-config` | Claude settings sync repo | `defer` / `exclude` | Claude-native config/tooling requires explicit user opt-in |
+| `agent-config-sync-repo` | Agent settings sync repo | `defer` / `exclude` | Runtime/config tooling requires explicit user opt-in |
 | `old-lab` | Claude hooks only | `defer` | Too tool-specific for this pass |
 | `vendor/example` | none | `exclude` | Vendored or generated material |
 

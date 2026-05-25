@@ -170,8 +170,8 @@ Validate:
 
 Distinguish source repositories from installed runtime skills:
 
-- A source repo such as `custom-skills` may be product/workspace material and
-  should be classified by purpose, not excluded only because it contains skills.
+- A skill source repository may be product/workspace material and should be
+  classified by purpose, not excluded only because it contains skills.
 - Installed runtime copies under Claude plugin/cache/skill directories are
   runtime artifacts. They should normally be `already-present`, `rewrite`, or
   `defer`, not blindly copied into the active Codex workspace.

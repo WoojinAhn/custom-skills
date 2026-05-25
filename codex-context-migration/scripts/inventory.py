@@ -1240,8 +1240,8 @@ def mcp_decision(row: dict[str, object], target_names: set[str]) -> tuple[str, s
     transport = str(row.get("transport") or "")
     if name in CODEX_RUNTIME_MCP_NAMES or "codex-runtime" in risk_signals:
         return "already-present", "Codex target runtime baseline"
-    if origin == "target" and name == "notion":
-        return "cleanup-candidate", "remote MCP needs auth review before keeping"
+    if origin == "target" and transport == "remote-url":
+        return "defer", "remote MCP requires auth and data-scope review before keeping"
     if origin == "target":
         return "already-present", "Codex-managed MCP registration already present"
     if "credentials" in risk_signals or "write-or-production-risk" in risk_signals:
@@ -1454,6 +1454,8 @@ def list_signals(
         signals.append("claude-skills")
     if any(claude_dir.glob("settings*.json")):
         signals.append("claude-settings")
+    if any(repo.rglob("SKILL.md")):
+        signals.append("skill-source-structure")
     if "permissions" in claude_settings_keys:
         signals.append("claude-permissions")
     if "mcpServers" in claude_settings_keys:
@@ -1469,6 +1471,11 @@ def list_signals(
     path_tokens = name_tokens(rel_path)
     if {"config", "settings", "sync"} & path_tokens and "claude" in path_tokens:
         signals.append("claude-config-repo")
+    elif {"config", "settings", "sync"} & path_tokens and {
+        "agent",
+        "agents",
+    } & path_tokens:
+        signals.append("agent-config-repo")
     if path_parts & WEAK_EXCLUSION_NAMES:
         signals.append("weak-exclusion-name")
 
@@ -1504,7 +1511,7 @@ def suggest_action(signals: list[str]) -> str:
         return "review-size-risk"
     if "git-marker-file-submodule" in signal_set:
         return "include-copy-only"
-    if {"claude-native-repo", "claude-config-repo"} & signal_set:
+    if {"claude-native-repo", "claude-config-repo", "agent-config-repo"} & signal_set:
         return "defer-claude-native"
     if {"claude-local-md", "claude-home-imports", "claude-external-imports"} & signal_set:
         return "review-private-context"
@@ -1547,15 +1554,15 @@ def classify_repo_kind(row: dict[str, object]) -> str:
         ("README.md", "README.ko.md", "package.json", "pyproject.toml"),
     ).lower()
 
-    if {"claude-native-repo", "claude-config-repo"} & signals:
+    if {"claude-native-repo", "claude-config-repo", "agent-config-repo"} & signals:
         if "claude --print" in purpose_text and "app" in purpose_text:
             return "product-using-claude-cli"
-        if path == "custom-skills" or "skill source" in purpose_text:
+        if "skill-source-structure" in signals or "skill source" in purpose_text:
             return "skill-source"
         return "claude-runtime-tool"
     if "claude --print" in purpose_text:
         return "product-using-claude-cli"
-    if path == "custom-skills" or "skill source" in purpose_text:
+    if "skill-source-structure" in signals or "skill source" in purpose_text:
         return "skill-source"
     if row.get("plugin_decisions_required"):
         return "ecosystem-tool"
@@ -1708,7 +1715,9 @@ def inventory_row(
         "skipped_oversized_source_paths": imports["skipped_oversized_paths"],
         "claude_settings_keys": sorted(claude_settings_keys),
         "is_claude_native_repo": (
-            "claude-native-repo" in signals or "claude-config-repo" in signals
+            "claude-native-repo" in signals
+            or "claude-config-repo" in signals
+            or "agent-config-repo" in signals
         ),
         "agents_size_bytes": agents_size,
         "agents_override_size_bytes": agents_override_size,
