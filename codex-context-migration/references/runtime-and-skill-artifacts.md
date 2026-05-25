@@ -123,6 +123,15 @@ Keep MCP and plugin audits aligned, but manage them separately. MCP changes use
 `codex mcp ...`; plugin changes use `codex plugin ...`. Verify command support
 with `--help` before suggesting exact flags.
 
+Do not infer MCP ownership from marketplace catalog presence. A Claude
+marketplace entry such as `context7@claude-plugins-official` only proves the
+plugin is discoverable in that marketplace; it does not prove the active MCP is
+Claude-managed or installed. If `[mcp_servers.context7]` exists in Codex config,
+classify the active capability as Codex-managed MCP unless the actual installed
+plugin config says otherwise. Retained MCPs should be re-registered or
+documented through `codex mcp add/remove/get/list`, not by installing Claude
+marketplace plugins.
+
 ## Skill Artifacts
 
 When the source context is a skill, do not import it as plain `AGENTS.md`

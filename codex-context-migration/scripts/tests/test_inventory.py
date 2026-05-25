@@ -676,3 +676,45 @@ def test_mcp_source_config_is_capability_review_not_direct_copy(tmp_path):
     assert by_name["prod-writer"]["decision"] == "defer"
     assert "credentials or remote access" in by_name["prod-writer"]["reason"]
     assert by_name["prod-writer"]["origin"] == "source"
+
+
+def test_context7_codex_mcp_is_not_reclassified_by_claude_marketplace_entry(tmp_path):
+    codex_home = tmp_path / ".codex"
+    marketplace_plugin = (
+        codex_home
+        / ".tmp"
+        / "marketplaces"
+        / "claude-plugins-official"
+        / "external_plugins"
+        / "context7"
+        / ".claude-plugin"
+    )
+    marketplace_plugin.mkdir(parents=True)
+    (marketplace_plugin / "plugin.json").write_text(
+        json.dumps({"name": "context7"}), encoding="utf-8"
+    )
+    codex_home.mkdir(exist_ok=True)
+    (codex_home / "config.toml").write_text(
+        """
+        [mcp_servers.context7]
+        command = "npx"
+        args = ["-y", "@upstash/context7-mcp"]
+        """,
+        encoding="utf-8",
+    )
+
+    artifacts = inventory.inventory_artifacts(
+        [codex_home / ".tmp" / "marketplaces"]
+    )
+    mcp_rows = inventory.target_mcp_baseline(codex_home)
+    decisions = inventory.mcp_capability_decisions([], mcp_rows)
+    by_name = {row["name"]: row for row in decisions}
+
+    assert any(
+        row["name"] == "context7" and row["provider"] == "claude-plugins-official"
+        for row in artifacts
+    )
+    assert by_name["context7"]["origin"] == "target"
+    assert by_name["context7"]["managed_by"] == "codex-mcp"
+    assert by_name["context7"]["decision"] == "already-present"
+    assert "Claude" not in by_name["context7"]["reason"]

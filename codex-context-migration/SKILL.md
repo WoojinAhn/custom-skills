@@ -139,7 +139,8 @@ python3 <skill-dir>/scripts/inventory.py \
    separate audit decisions, not as `AGENTS.md` dumps. MCP migration is
    capability re-selection, not config copying: source `.mcp.json`, Claude MCP
    settings, and existing target MCP registrations are evidence, not target
-   truth.
+   truth. A Claude marketplace entry is not proof that an active MCP is
+   Claude-managed; retained MCPs should be managed through Codex MCP commands.
 8. For `migrate-full-workspace`, run a dry-run preview from the manifest, get
    confirmation for risky or surprising exclusions, then copy only manifest
    `migrate` rows. After copy, run the forbidden-path scan before any

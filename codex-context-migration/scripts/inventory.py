@@ -1176,6 +1176,7 @@ def mcp_row(
     return {
         "name": name,
         "origin": origin,
+        "managed_by": "codex-mcp" if origin == "target" else "source-config",
         "source_path": str(source_path),
         "transport": mcp_transport(config),
         "command": str(config.get("command") or ""),
@@ -1242,6 +1243,8 @@ def mcp_decision(row: dict[str, object], target_names: set[str]) -> tuple[str, s
         return "already-present", "Codex target runtime baseline"
     if origin == "target" and name == "notion":
         return "cleanup-candidate", "remote MCP needs auth review before keeping"
+    if origin == "target" and name in CODEX_NATIVE_MCP_NAMES:
+        return "already-present", "Codex-managed MCP registration already present"
     if "credentials" in risk_signals or "write-or-production-risk" in risk_signals:
         return "defer", "MCP uses credentials or remote access requiring review"
     if origin == "source" and name in target_names:
@@ -2029,7 +2032,15 @@ def print_forbidden_scan_markdown(hits: list[dict[str, str]]) -> None:
 def print_mcp_audit_markdown(rows: list[dict[str, object]]) -> None:
     if not rows:
         return
-    headers = ["name", "origin", "transport", "decision", "reason", "risk_signals"]
+    headers = [
+        "name",
+        "origin",
+        "managed_by",
+        "transport",
+        "decision",
+        "reason",
+        "risk_signals",
+    ]
     print()
     print("## MCP Capability Audit")
     print()

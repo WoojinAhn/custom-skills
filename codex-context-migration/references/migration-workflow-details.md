@@ -156,6 +156,10 @@ into Codex config.
    silently retained.
 6. Keep plugin and MCP decisions in the same ecosystem audit, but execute them
    with separate commands.
+7. Do not treat a Claude marketplace entry as an installed MCP/plugin. For
+   example, `context7@claude-plugins-official` in a marketplace cache can
+   coexist with an active Codex `[mcp_servers.context7]`; the active MCP should
+   be managed through `codex mcp ...`.
 
 ## Native Rewrite Rubric
 

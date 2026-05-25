@@ -101,7 +101,7 @@ Claude MCP settings, and existing target MCP registrations are evidence only.
 
 | MCP | Origin | Transport | Auth state | Risk | Codex-native equivalent | Decision | Evidence |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `context7` | source / target | stdio-command | unsupported / n/a | low | `context7` | codex-native / already-present |  |
+| `context7` | source / target | stdio-command | unsupported / n/a | low | `context7` | codex-native / already-present | If target config has `[mcp_servers.context7]`, record as Codex-managed even when a Claude marketplace entry exists |
 | `node_repl` | target | stdio-command | unsupported | Codex runtime | Codex app runtime | already-present |  |
 | `notion` | target | remote-url | not logged in | auth/external data | none / Notion MCP | cleanup-candidate / defer |  |
 | `prod-writer` | source | remote-url | token/env | credentials/write/production | none known | defer |  |
@@ -114,6 +114,13 @@ MCP summary:
 - Cleanup candidates:
 - Manual review:
 - Omitted:
+
+Marketplace note:
+
+- Claude marketplace/catalog presence alone is not evidence that an MCP is
+  Claude-managed or installed. Active MCP ownership comes from Codex MCP config,
+  `codex mcp get/list`, or an installed plugin manifest, not from a catalog
+  entry.
 
 ## Global Claude Runtime Snapshot
 
