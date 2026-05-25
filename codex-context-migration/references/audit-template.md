@@ -60,7 +60,7 @@ bulk copy for `migrate-full-workspace`.
 | Path | Kind | Remote state | Decision | Reason | Evidence |
 | --- | --- | --- | --- | --- | --- |
 | `example-repo` | `product-repo` | `fresh` / `behind` / `no-remote` | migrate / exclude / defer / already-present |  |  |
-| `agent-config-sync-repo` | `agent-runtime-tool` |  | exclude / defer | Agent runtime/config repository |  |
+| `workflow-utils` | `agent-runtime-tool` |  | exclude / defer | Agent runtime/config repository | settings/hooks files and install script target agent runtime config |
 | `skill-source-repo` | `skill-source-repo` |  | migrate / defer | Source material, not installed runtime copy |  |
 
 Manifest summary:

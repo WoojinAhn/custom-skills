@@ -1395,6 +1395,37 @@ def looks_claude_native(rel_path: str, repo: Path) -> bool:
     return False
 
 
+def has_runtime_config_structure(repo: Path) -> bool:
+    runtime_files = ("settings.json", "settings.local.json", "hooks.json", "config.toml")
+    if any((repo / name).is_file() for name in runtime_files):
+        text = read_first_existing_text(
+            repo,
+            ("README.md", "README.ko.md", "package.json", "pyproject.toml"),
+        ).lower()
+        if any(token in text for token in ("hook", "hooks", "permission", "settings", "runtime")):
+            return True
+    for path in repo.rglob("*"):
+        if ".git" in path.parts or not path.is_file():
+            continue
+        if path.suffix not in {".sh", ".js", ".mjs", ".ts", ".py", ".json", ".toml"}:
+            continue
+        try:
+            content = path.read_text(encoding="utf-8", errors="replace").lower()
+        except OSError:
+            continue
+        if any(
+            marker in content
+            for marker in (
+                ".claude/settings",
+                ".codex/config.toml",
+                ".codex/hooks.json",
+                "mcp_servers",
+            )
+        ):
+            return True
+    return False
+
+
 def list_signals(
     repo: Path,
     rel_path: str,
@@ -1456,6 +1487,8 @@ def list_signals(
         signals.append("claude-settings")
     if any(repo.rglob("SKILL.md")):
         signals.append("skill-source-structure")
+    if has_runtime_config_structure(repo):
+        signals.append("agent-runtime-config-structure")
     if "permissions" in claude_settings_keys:
         signals.append("claude-permissions")
     if "mcpServers" in claude_settings_keys:
@@ -1511,7 +1544,12 @@ def suggest_action(signals: list[str]) -> str:
         return "review-size-risk"
     if "git-marker-file-submodule" in signal_set:
         return "include-copy-only"
-    if {"claude-native-repo", "claude-config-repo", "agent-config-repo"} & signal_set:
+    if {
+        "claude-native-repo",
+        "claude-config-repo",
+        "agent-config-repo",
+        "agent-runtime-config-structure",
+    } & signal_set:
         return "defer-claude-native"
     if {"claude-local-md", "claude-home-imports", "claude-external-imports"} & signal_set:
         return "review-private-context"
@@ -1554,7 +1592,12 @@ def classify_repo_kind(row: dict[str, object]) -> str:
         ("README.md", "README.ko.md", "package.json", "pyproject.toml"),
     ).lower()
 
-    if {"claude-native-repo", "claude-config-repo", "agent-config-repo"} & signals:
+    if {
+        "claude-native-repo",
+        "claude-config-repo",
+        "agent-config-repo",
+        "agent-runtime-config-structure",
+    } & signals:
         if "claude --print" in purpose_text and "app" in purpose_text:
             return "product-using-claude-cli"
         if "skill-source-structure" in signals or "skill source" in purpose_text:
@@ -1718,6 +1761,7 @@ def inventory_row(
             "claude-native-repo" in signals
             or "claude-config-repo" in signals
             or "agent-config-repo" in signals
+            or "agent-runtime-config-structure" in signals
         ),
         "agents_size_bytes": agents_size,
         "agents_override_size_bytes": agents_override_size,

@@ -59,13 +59,16 @@ Do not classify repositories by string matching alone. Use this procedure:
 1. Read a concise source such as `README.md`, package metadata, or the entry
    point.
 2. Write a one-line `purpose` in the manifest.
-3. Decide whether the repo is:
+3. Inspect structural signals instead of relying on the repository name:
+   runtime settings files, hook files, install/sync scripts that write to
+   `~/.claude` or `~/.codex`, MCP config, `SKILL.md` packages, and CLI usage.
+4. Decide whether the repo is:
    - a product repo that uses Claude CLI as an implementation dependency,
    - an ecosystem/catalog repo that treats Claude as data,
    - a skill source repo,
    - a runtime/config repo that manipulates Claude state,
    - or ordinary workspace source.
-4. Make the decision from that purpose.
+5. Make the decision from that purpose and structural evidence.
 
 Examples:
 

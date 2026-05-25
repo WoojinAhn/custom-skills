@@ -484,12 +484,19 @@ def test_manifest_excludes_runtime_tool_and_migrates_product_repo(tmp_path):
     source.mkdir()
     destination.mkdir()
 
-    runtime_tool = source / "agent-config-sync-repo"
+    runtime_tool = source / "workflow-utils"
     runtime_tool.mkdir()
     (runtime_tool / ".git").mkdir()
+    scripts = runtime_tool / "scripts"
+    scripts.mkdir()
     (runtime_tool / "settings.json").write_text("{}", encoding="utf-8")
+    (runtime_tool / "hooks.json").write_text("{}", encoding="utf-8")
+    (scripts / "install.sh").write_text(
+        "cp settings.json \"$HOME/.claude/settings.json\"\n",
+        encoding="utf-8",
+    )
     (runtime_tool / "README.md").write_text(
-        "Claude configuration sync tool for hooks and settings.\n",
+        "Bootstrap scripts for agent hooks, permissions, and settings.\n",
         encoding="utf-8",
     )
 
@@ -512,9 +519,9 @@ def test_manifest_excludes_runtime_tool_and_migrates_product_repo(tmp_path):
     )
     by_path = {row["path"]: row for row in manifest}
 
-    assert by_path["agent-config-sync-repo"]["decision"] == "exclude"
-    assert by_path["agent-config-sync-repo"]["kind"] == "claude-runtime-tool"
-    assert "claude-native" in by_path["agent-config-sync-repo"]["reason"]
+    assert by_path["workflow-utils"]["decision"] == "exclude"
+    assert by_path["workflow-utils"]["kind"] == "claude-runtime-tool"
+    assert "claude-native" in by_path["workflow-utils"]["reason"]
 
     assert by_path["product-app-using-agent-cli"]["decision"] == "migrate"
     assert by_path["product-app-using-agent-cli"]["kind"] == "product-using-claude-cli"
