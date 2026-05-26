@@ -4,6 +4,8 @@
     "entry": {
       "candidate": "Candidate plugin ref, or empty string when no direct candidate exists.",
       "confidence": "Mapping confidence label such as mapped, same-name, research, or third-party-exception.",
+      "last_reviewed": "ISO date when this mapping was last checked.",
+      "evidence_required": "What must be verified in the target environment before accepting the mapping.",
       "note": "Short audit note shown in inventory output."
     }
   },
@@ -11,6 +13,8 @@
     {
       "candidate": "build-web-apps@openai-curated",
       "confidence": "mapped",
+      "last_reviewed": "2026-05-26",
+      "evidence_required": "Verify the target Codex installation provides the candidate and compare workflow semantics before replacing the Claude plugin.",
       "note": "Prefer Codex official web-app workflow before retaining Claude frontend-design."
     }
   ],
@@ -18,6 +22,8 @@
     {
       "candidate": "superpowers@openai-curated",
       "confidence": "same-name",
+      "last_reviewed": "2026-05-26",
+      "evidence_required": "Verify the target Codex installation provides the candidate and compare skill bodies and triggers before replacing the Claude plugin.",
       "note": "Same name still requires behavior and trigger comparison."
     }
   ],
@@ -25,11 +31,15 @@
     {
       "candidate": "browser@openai-bundled",
       "confidence": "mapped",
+      "last_reviewed": "2026-05-26",
+      "evidence_required": "Verify browser automation requirements and installed Codex browser capability before replacing the Claude plugin.",
       "note": "Pair with Codex MCP Playwright review when browser automation is needed."
     },
     {
       "candidate": "mcp-playwright@codex-mcp",
       "confidence": "research",
+      "last_reviewed": "2026-05-26",
+      "evidence_required": "Verify active Codex MCP registration with codex mcp commands before marking this capability already-present.",
       "note": "Check Codex MCP registration; not a plugin marketplace entry."
     }
   ],
@@ -37,11 +47,15 @@
     {
       "candidate": "openai-developers@openai-curated",
       "confidence": "research",
+      "last_reviewed": "2026-05-26",
+      "evidence_required": "Inspect available target developer tooling and confirm it covers MCP server authoring before replacing the Claude plugin.",
       "note": "No guaranteed one-to-one equivalent; inspect available OpenAI developer tooling."
     },
     {
       "candidate": "plugin-eval@openai-curated",
       "confidence": "research",
+      "last_reviewed": "2026-05-26",
+      "evidence_required": "Use only when the task is plugin/server evaluation and verify the target plugin exists.",
       "note": "Evaluate only if the task is plugin/server evaluation rather than MCP server authoring."
     }
   ],
@@ -49,6 +63,8 @@
     {
       "candidate": "",
       "confidence": "third-party-exception",
+      "last_reviewed": "2026-05-26",
+      "evidence_required": "Retain only when the user explicitly wants this third-party bridge and the target environment supports it.",
       "note": "Reverse bridge candidate; retain only with explicit user reason."
     }
   ]

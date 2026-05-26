@@ -82,15 +82,17 @@ DIRECTIVE_IMPORT_RE = re.compile(
 IMPORT_RE = DIRECTIVE_IMPORT_RE
 INLINE_REF_RE = re.compile(r"""(?:^|\s)@(?P<path>[A-Za-z0-9_.\-/]+)""")
 PLUGIN_REF_RE = re.compile(r"(?P<name>[a-z0-9][a-z0-9-]*)@(?P<source>[a-z0-9][a-z0-9-]*)")
-ALLOWED_PLUGIN_REF_SOURCES = {
+KNOWN_PLUGIN_REF_SOURCES = {
     "claude-plugins-official",
     "openai-curated",
     "openai-bundled",
     "openai-primary-runtime",
     "openai-codex",
-    "sendbird",
     "codex-mcp",
 }
+VERSION_LIKE_PLUGIN_SOURCE_RE = re.compile(
+    r"^v?\d+(?:\.\d+)*(?:[-+][a-z0-9.-]+)?$"
+)
 JSON_PLUGIN_CONTEXT_KEYS = (
     "plugins",
     "enabledplugins",
@@ -572,13 +574,15 @@ def load_plugin_mappings(path: Path = PLUGIN_MAPPINGS_PATH) -> dict[str, list[di
         for entry in entries:
             if not isinstance(entry, dict):
                 continue
-            normalized_entries.append(
-                {
-                    "candidate": str(entry.get("candidate") or ""),
-                    "confidence": str(entry.get("confidence") or "unknown"),
-                    "note": str(entry.get("note") or ""),
-                }
-            )
+            normalized_entry = {
+                "candidate": str(entry.get("candidate") or ""),
+                "confidence": str(entry.get("confidence") or "unknown"),
+                "note": str(entry.get("note") or ""),
+            }
+            for key in ("last_reviewed", "evidence_required"):
+                if entry.get(key):
+                    normalized_entry[key] = str(entry[key])
+            normalized_entries.append(normalized_entry)
         if normalized_entries:
             mappings[ref] = normalized_entries
     return mappings
@@ -636,22 +640,29 @@ def collect_plugin_refs_from_json(value: object, in_plugin_context: bool = False
                 isinstance(key, str) and is_plugin_json_context_key(key)
             )
             if key_in_plugin_context and isinstance(key, str):
-                refs.update(plugin_refs_from_text(key))
+                refs.update(plugin_refs_from_text(key, allow_unknown_providers=True))
             refs.update(collect_plugin_refs_from_json(item, key_in_plugin_context))
     elif isinstance(value, list):
         for item in value:
             refs.update(collect_plugin_refs_from_json(item, in_plugin_context))
     elif in_plugin_context and isinstance(value, str):
-        refs.update(plugin_refs_from_text(value))
+        refs.update(plugin_refs_from_text(value, allow_unknown_providers=True))
     return refs
 
 
-def plugin_refs_from_text(text: str) -> set[str]:
+def plugin_refs_from_text(
+    text: str, *, allow_unknown_providers: bool = False
+) -> set[str]:
     refs: set[str] = set()
     for match in PLUGIN_REF_RE.finditer(text):
         name = match.group("name")
         source = match.group("source")
-        if source not in ALLOWED_PLUGIN_REF_SOURCES:
+        if source in KNOWN_PLUGIN_REF_SOURCES:
+            refs.add(f"{name}@{source}")
+            continue
+        if not allow_unknown_providers:
+            continue
+        if VERSION_LIKE_PLUGIN_SOURCE_RE.match(source):
             continue
         refs.add(f"{name}@{source}")
     return refs
@@ -758,7 +769,6 @@ def provider_from_path(path: Path) -> str:
         "openai-curated",
         "openai-primary-runtime",
         "claude-plugins-official",
-        "sendbird",
     }
     for part in parts:
         if part in known:
@@ -1003,21 +1013,37 @@ def plugin_candidates(
                     "note": "Claude official plugin detected; check Codex official/curated alternatives before retaining.",
                 }
             ]
+        if not mappings and plugin_ref_source(ref) not in KNOWN_PLUGIN_REF_SOURCES:
+            mappings = [
+                {
+                    "candidate": "",
+                    "confidence": "third-party-exception",
+                    "note": "Third-party plugin provider detected; retain only with an explicit migration decision.",
+                }
+            ]
         if not mappings:
             continue
         for mapping in mappings:
             candidate = str(mapping.get("candidate") or "")
-            candidates.append(
-                {
-                    "source": ref,
-                    "candidate": candidate,
-                    "candidate_status": candidate_status(candidate, available_plugins),
-                    "confidence": mapping.get("confidence", "unknown"),
-                    "decision_required": True,
-                    "note": mapping.get("note", ""),
-                }
-            )
+            candidate_row = {
+                "source": ref,
+                "candidate": candidate,
+                "candidate_status": candidate_status(candidate, available_plugins),
+                "confidence": mapping.get("confidence", "unknown"),
+                "decision_required": True,
+                "note": mapping.get("note", ""),
+            }
+            for key in ("last_reviewed", "evidence_required"):
+                if mapping.get(key):
+                    candidate_row[key] = mapping[key]
+            candidates.append(candidate_row)
     return candidates
+
+
+def plugin_ref_source(ref: str) -> str:
+    if "@" not in ref:
+        return ""
+    return ref.rsplit("@", 1)[1]
 
 
 def plugin_decision_flags(
@@ -1027,7 +1053,7 @@ def plugin_decision_flags(
     for ref in refs:
         if ref.endswith("@claude-plugins-official"):
             flags.add("claude-plugin-retained-requires-user-confirmation")
-        if ref == "cc@sendbird":
+        if plugin_ref_source(ref) not in KNOWN_PLUGIN_REF_SOURCES:
             flags.add("third-party-exception-requires-reason")
     for candidate in candidates:
         if candidate.get("candidate_status") in {"not-found", "manual-review", "not-applicable"}:

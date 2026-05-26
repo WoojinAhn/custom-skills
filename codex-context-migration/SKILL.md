@@ -37,6 +37,23 @@ Use this skill when blind conversion could lose intent:
 For a small single repo with one short `CLAUDE.md`, use only inventory,
 classification, native rewrite, and validation.
 
+## Minimal Path
+
+For a small single repository with one concise instruction source, do not apply
+the full workspace audit template by default:
+
+1. Confirm source root, mode, and read-only inventory permission.
+2. Run setup-in-place inventory.
+3. Classify durable project facts, private/local context, runtime mechanics,
+   and stale material.
+4. Write or update only the repo `AGENTS.md`.
+5. Validate active instruction loading with `codex exec`, or record that Codex
+   CLI validation is unavailable.
+
+Escalate to the full workflow only when child repos, destination copy, private
+memory, runtime config, MCP, plugins, generated files, or conflicting
+instruction sources are present.
+
 ## Core Rule
 
 Do not treat migration as a filename rename. Decide source of truth:

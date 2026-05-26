@@ -88,6 +88,40 @@ def test_plugin_refs_from_settings_require_plugin_context(tmp_path):
     ]
 
 
+def test_plugin_refs_detect_unknown_third_party_provider(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / ".git").mkdir()
+    claude_dir = repo / ".claude"
+    claude_dir.mkdir()
+    (claude_dir / "settings.json").write_text(
+        """
+        {
+          "enabledPlugins": ["foo@acme"]
+        }
+        """,
+        encoding="utf-8",
+    )
+
+    rows = inventory.inventory(repo, None, 5, {})
+
+    assert rows[0]["detected_plugin_refs"] == ["foo@acme"]
+    assert rows[0]["codex_plugin_candidates"] == [
+        {
+            "source": "foo@acme",
+            "candidate": "",
+            "candidate_status": "not-applicable",
+            "confidence": "third-party-exception",
+            "decision_required": True,
+            "note": "Third-party plugin provider detected; retain only with an explicit migration decision.",
+        }
+    ]
+    assert rows[0]["plugin_decisions_required"] == [
+        "manual-plugin-review-required",
+        "third-party-exception-requires-reason",
+    ]
+
+
 def test_guided_auto_separates_root_and_child_action_counts(tmp_path):
     repo = tmp_path / "repo"
     repo.mkdir()
@@ -349,6 +383,8 @@ def test_plugin_mappings_load_from_json_without_code_change(tmp_path):
                     {
                         "candidate": "custom@openai-curated",
                         "confidence": "mapped",
+                        "last_reviewed": "2026-05-26",
+                        "evidence_required": "Verify target plugin availability.",
                         "note": "Loaded from fixture JSON.",
                     }
                 ],
@@ -366,6 +402,8 @@ def test_plugin_mappings_load_from_json_without_code_change(tmp_path):
 
     assert candidates[0]["candidate"] == "custom@openai-curated"
     assert candidates[0]["candidate_status"] == "available"
+    assert candidates[0]["last_reviewed"] == "2026-05-26"
+    assert candidates[0]["evidence_required"] == "Verify target plugin availability."
 
 
 def test_artifact_source_class_distinguishes_system_and_user_skills(tmp_path):
