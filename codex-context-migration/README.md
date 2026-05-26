@@ -6,6 +6,30 @@ workspace and repository context into Codex `AGENTS.md` files. It is not a
 private memory, runtime config, MCP setup, hooks, plugins, stale content, and
 generated instruction files before anything becomes always-loaded Codex context.
 
+## Install
+
+This is a Codex skill, not a required plugin package. Install the whole
+`codex-context-migration/` directory into the Codex skills directory:
+
+```bash
+mkdir -p "${CODEX_HOME:-$HOME/.codex}/skills"
+ln -s <repo-path>/codex-context-migration \
+  "${CODEX_HOME:-$HOME/.codex}/skills/codex-context-migration"
+```
+
+Restart Codex after installation.
+
+If you already have this repository on GitHub, you can also ask Codex to use
+its `skill-installer` skill to install:
+
+```text
+WoojinAhn/custom-skills/codex-context-migration
+```
+
+Plugin packaging is not required for direct skill use. A `.codex-plugin`
+wrapper and marketplace entry can be added later if this skill needs
+marketplace-style discovery or installation.
+
 ## When To Use
 
 Use this skill when a migration has more than one source of context or when a
@@ -26,7 +50,25 @@ as-is rather than migrate its contents.
 
 ## Quick Start
 
-Run the read-only inventory first:
+Run the migration from a Codex session. The source files being migrated may
+contain instructions for another agent; this skill treats them as data to audit,
+not as commands to follow.
+
+Example prompt:
+
+```text
+Use the codex-context-migration skill.
+
+Source root: `/path/to/old-workspace`
+Operation mode: `migrate-full-workspace`
+Destination root: `/path/to/new-codex-workspace`
+
+Run read-only inventory first. Show the guided-auto plan and ask before
+copying files, migrating private context, registering MCP servers, or retaining
+runtime/plugin behavior.
+```
+
+Manual read-only inventory command:
 
 ```bash
 python3 codex-context-migration/scripts/inventory.py \

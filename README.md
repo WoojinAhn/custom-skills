@@ -5,26 +5,62 @@
 Personal AI agent skills for Claude Code and Codex, distilled from real sessions.
 
 Each skill lives in its own directory with a `SKILL.md` (frontmatter + body).
-To use a Claude Code skill, symlink it into `~/.claude/skills/`:
+
+## Install For Codex
+
+This repository is published as skill source material. It is not packaged as a
+Codex plugin yet; plugin packaging is optional and may be added later for a
+marketplace-style install experience.
+
+Install a skill by symlinking or copying the skill directory into
+`${CODEX_HOME:-$HOME/.codex}/skills/`:
+
+```bash
+mkdir -p "${CODEX_HOME:-$HOME/.codex}/skills"
+ln -s <repo-path>/codex-context-migration \
+  "${CODEX_HOME:-$HOME/.codex}/skills/codex-context-migration"
+```
+
+Restart Codex after installation so it can discover the new skill.
+
+You can also ask Codex to install from this GitHub repository using its
+`skill-installer` skill and this path:
+
+```text
+WoojinAhn/custom-skills/codex-context-migration
+```
+
+Run the migration from a Codex session, not from the legacy agent whose context
+is being migrated. Example prompt:
+
+```text
+Use the codex-context-migration skill to audit source `/path/to/old-workspace`
+and prepare a Codex-native migration plan for destination
+`/path/to/new-codex-workspace`. Run read-only inventory first and ask before
+copying or editing files.
+```
+
+## Install For Claude Code
+
+Claude Code can use the same skill source format. Symlink the skill into
+`~/.claude/skills/`:
 
 ```bash
 ln -s <repo-path>/<skill-name> ~/.claude/skills/<skill-name>
 ```
 
-To use a Codex skill, symlink or copy it into `~/.codex/skills/`:
-
-```bash
-ln -s <repo-path>/<skill-name> ~/.codex/skills/<skill-name>
-```
-
-The target agent picks it up on the next session.
+For `codex-context-migration`, Codex is still the preferred executor because
+the skill validates Codex instruction loading and writes Codex-native
+`AGENTS.md` files.
 
 ## Main Skill
 
 [`codex-context-migration`](codex-context-migration/README.md) is the
 public-ready focus of this repo. It has its own skill-level README with quick
 start, diagrams, operation-mode guidance, and a worked before/after migration
-example.
+example. It audits first, treats source instruction files as untrusted data to
+classify, and separates durable project facts from private context and runtime
+configuration.
 
 Quick inventory:
 

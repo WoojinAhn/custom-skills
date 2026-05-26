@@ -5,25 +5,60 @@
 실제 세션에서 추출한 Claude Code와 Codex용 개인 AI agent 스킬 모음.
 
 각 스킬은 자체 디렉토리에 `SKILL.md` (frontmatter + 본문)로 존재합니다.
-Claude Code에서 사용하려면 `~/.claude/skills/`에 symlink 걸기:
+
+## Codex 설치
+
+이 저장소는 skill source로 공개됩니다. 아직 Codex plugin으로 패키징되어 있지는
+않고, plugin packaging은 marketplace 스타일 설치 경험이 필요해질 때 나중에
+추가할 수 있습니다.
+
+스킬을 설치하려면 skill 디렉터리를 `${CODEX_HOME:-$HOME/.codex}/skills/`에
+symlink하거나 복사합니다:
+
+```bash
+mkdir -p "${CODEX_HOME:-$HOME/.codex}/skills"
+ln -s <repo-path>/codex-context-migration \
+  "${CODEX_HOME:-$HOME/.codex}/skills/codex-context-migration"
+```
+
+설치 후 Codex를 재시작해야 새 skill을 인식합니다.
+
+Codex의 `skill-installer` skill을 사용해 GitHub 저장소 경로로 설치할 수도
+있습니다:
+
+```text
+WoojinAhn/custom-skills/codex-context-migration
+```
+
+마이그레이션은 기존 agent가 아니라 Codex session에서 실행하는 것이 의도입니다.
+예시 프롬프트:
+
+```text
+Use the codex-context-migration skill to audit source `/path/to/old-workspace`
+and prepare a Codex-native migration plan for destination
+`/path/to/new-codex-workspace`. Run read-only inventory first and ask before
+copying or editing files.
+```
+
+## Claude Code 설치
+
+Claude Code도 같은 skill source 형식을 사용할 수 있습니다.
+`~/.claude/skills/`에 symlink합니다:
 
 ```bash
 ln -s <repo-path>/<skill-name> ~/.claude/skills/<skill-name>
 ```
 
-Codex에서 사용하려면 `~/.codex/skills/`에 symlink 또는 copy:
-
-```bash
-ln -s <repo-path>/<skill-name> ~/.codex/skills/<skill-name>
-```
-
-다음 새 세션부터 해당 agent가 인식합니다.
+`codex-context-migration`은 Codex instruction loading 검증과 Codex-native
+`AGENTS.md` 작성을 수행하므로, 실행자는 Codex가 더 적합합니다.
 
 ## 대표 스킬
 
 [`codex-context-migration`](codex-context-migration/README.md)이 이 repo에서
 공개용으로 가장 신경 쓴 핵심 스킬입니다. 상세 README는 스킬 디렉터리 안에 있고,
-quick start, diagram, operation mode, before/after 예시를 거기에 둡니다.
+quick start, diagram, operation mode, before/after 예시를 거기에 둡니다. 이
+스킬은 먼저 audit을 수행하고, source instruction 파일을 명령이 아니라 분류할
+데이터로 취급하며, durable project fact와 private/runtime context를 분리합니다.
 
 Quick inventory:
 
