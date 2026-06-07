@@ -122,6 +122,60 @@ def test_plugin_refs_detect_unknown_third_party_provider(tmp_path):
     ]
 
 
+def test_claude_native_repo_requires_evidence_for_cc_name(tmp_path):
+    source = tmp_path / "workspace"
+    source.mkdir()
+    repo = source / "cc-config"
+    repo.mkdir()
+    (repo / ".git").mkdir()
+    (repo / "README.md").write_text("Configuration for C compiler flags.\n", encoding="utf-8")
+
+    rows = inventory.inventory(source, None, 5, {})
+
+    assert "claude-native-repo" not in rows[0]["signals"]
+    assert rows[0]["suggested_action"] != "defer-claude-native"
+
+
+def test_claude_native_repo_accepts_cc_name_with_claude_dir(tmp_path):
+    source = tmp_path / "workspace"
+    source.mkdir()
+    repo = source / "cc-skills"
+    repo.mkdir()
+    (repo / ".git").mkdir()
+    (repo / ".claude").mkdir()
+
+    rows = inventory.inventory(source, None, 5, {})
+
+    assert "claude-native-repo" in rows[0]["signals"]
+
+
+def test_claude_native_repo_requires_evidence_for_claude_name(tmp_path):
+    source = tmp_path / "workspace"
+    source.mkdir()
+    repo = source / "claude-frontend"
+    repo.mkdir()
+    (repo / ".git").mkdir()
+    (repo / "README.md").write_text("Frontend for the Claude product surface.\n", encoding="utf-8")
+
+    rows = inventory.inventory(source, None, 5, {})
+
+    assert "claude-native-repo" not in rows[0]["signals"]
+    assert rows[0]["suggested_action"] != "defer-claude-native"
+
+
+def test_claude_native_repo_name_match_remains_required(tmp_path):
+    source = tmp_path / "workspace"
+    source.mkdir()
+    repo = source / "random-repo"
+    repo.mkdir()
+    (repo / ".git").mkdir()
+    (repo / "README.md").write_text("This repo mentions Claude Code in documentation.\n", encoding="utf-8")
+
+    rows = inventory.inventory(source, None, 5, {})
+
+    assert "claude-native-repo" not in rows[0]["signals"]
+
+
 def test_guided_auto_separates_root_and_child_action_counts(tmp_path):
     repo = tmp_path / "repo"
     repo.mkdir()

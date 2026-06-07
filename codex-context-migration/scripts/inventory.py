@@ -71,6 +71,13 @@ CLAUDE_NATIVE_QUALIFIERS = {
     "tool",
     "tools",
 }
+CLAUDE_NATIVE_EVIDENCE_MARKERS = (
+    "claude code",
+    "claude --print",
+    ".claude/",
+    "claude plugin",
+    "claude skill",
+)
 
 DEFAULT_CODEX_DOC_MAX_BYTES = 32768
 DEFAULT_MAX_SOURCE_BYTES = 1024 * 1024
@@ -604,11 +611,26 @@ def settings_keys(repo: Path) -> set[str]:
     return keys
 
 
-def repo_name_looks_claude_native(repo: Path) -> bool:
-    tokens = name_tokens(repo.name)
+def repo_has_claude_native_evidence(repo: Path) -> bool:
+    if (repo / ".claude").is_dir():
+        return True
+    if (repo / "CLAUDE.md").is_file() or (repo / ".claude" / "CLAUDE.md").is_file():
+        return True
+    text = read_first_existing_text(
+        repo,
+        ("README.md", "README.ko.md", "package.json", "pyproject.toml"),
+    ).lower()
+    return any(marker in text for marker in CLAUDE_NATIVE_EVIDENCE_MARKERS)
+
+
+def tokens_match_claude_native_pattern(tokens: set[str]) -> bool:
     return "claude" in tokens or (
         bool(tokens & CLAUDE_NATIVE_KEYWORDS) and bool(tokens & CLAUDE_NATIVE_QUALIFIERS)
     )
+
+
+def repo_name_looks_claude_native(repo: Path) -> bool:
+    return tokens_match_claude_native_pattern(name_tokens(repo.name)) and repo_has_claude_native_evidence(repo)
 
 
 def iter_claude_settings_sources(repo: Path) -> Iterable[Path]:
@@ -1409,16 +1431,8 @@ def name_tokens(path_text: str) -> set[str]:
 
 
 def looks_claude_native(rel_path: str, repo: Path) -> bool:
-    tokens = name_tokens(rel_path)
-    repo_tokens = name_tokens(repo.name)
-    keyword_hit = bool(tokens & CLAUDE_NATIVE_KEYWORDS)
-    qualifier_hit = bool(tokens & CLAUDE_NATIVE_QUALIFIERS)
-
-    if "claude" in repo_tokens:
-        return True
-    if keyword_hit and qualifier_hit:
-        return True
-    return False
+    tokens = name_tokens(rel_path) | name_tokens(repo.name)
+    return tokens_match_claude_native_pattern(tokens) and repo_has_claude_native_evidence(repo)
 
 
 def has_runtime_config_structure(repo: Path) -> bool:
