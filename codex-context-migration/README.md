@@ -172,6 +172,7 @@ realistic before/after migration showing:
 ## References
 
 - [SKILL.md](SKILL.md): compact operational instructions loaded by the agent.
+- [LICENSE.txt](LICENSE.txt): MIT license for this skill package.
 - [references/operation-modes.md](references/operation-modes.md): detailed mode,
   posture, parent-policy, child-selection, and guided-auto semantics.
 - [references/audit-template.md](references/audit-template.md): migration audit

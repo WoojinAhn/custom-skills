@@ -139,3 +139,10 @@ does not infer full speaker names when Zoom only exposes caption initials.
 - Each skill should encode lessons from at least one real session — no speculative skills
 - Anti-patterns section at the end if the skill has known failure modes
 - To expose a skill in Codex/OpenAI skill lists, add `agents/openai.yaml` (UI + policy metadata; schema: [openai/codex skill-creator](https://github.com/openai/codex/blob/main/codex-rs/skills/src/assets/samples/skill-creator/references/openai_yaml.md))
+
+## License
+
+This repository is licensed under the [MIT License](LICENSE.txt). The public
+`codex-context-migration` skill also includes its own
+[`LICENSE.txt`](codex-context-migration/LICENSE.txt) for catalog-style skill
+packaging.
