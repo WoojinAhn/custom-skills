@@ -17,6 +17,13 @@ ln -s <repo-path>/codex-context-migration \
   "${CODEX_HOME:-$HOME/.codex}/skills/codex-context-migration"
 ```
 
+> Verified with `codex-cli 0.137.0`: bundled system skills are present under
+> `${CODEX_HOME:-$HOME/.codex}/skills/.system/`, and the bundled
+> `skill-installer` installs into `${CODEX_HOME:-$HOME/.codex}/skills/`.
+> OpenAI's current Codex skills docs also describe `.agents/skills` locations
+> for authoring/local discovery, so prefer your local Codex installation's
+> skill-installer path if the paths differ.
+
 Restart Codex after installation.
 
 If you already have this repository on GitHub, you can also ask Codex to use

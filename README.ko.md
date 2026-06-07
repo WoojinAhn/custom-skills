@@ -21,6 +21,13 @@ ln -s <repo-path>/codex-context-migration \
   "${CODEX_HOME:-$HOME/.codex}/skills/codex-context-migration"
 ```
 
+> `codex-cli 0.137.0`에서 검증된 경로입니다. bundled system skills는
+> `${CODEX_HOME:-$HOME/.codex}/skills/.system/` 아래에 있고, bundled
+> `skill-installer`도 `${CODEX_HOME:-$HOME/.codex}/skills/`에 설치합니다.
+> OpenAI의 현재 Codex skills 문서는 authoring/local discovery 경로로
+> `.agents/skills`도 설명하므로, 경로가 다르면 로컬 Codex 설치본의
+> skill-installer 경로를 우선하세요.
+
 설치 후 Codex를 재시작해야 새 skill을 인식합니다.
 
 Codex의 `skill-installer` skill을 사용해 GitHub 저장소 경로로 설치할 수도
