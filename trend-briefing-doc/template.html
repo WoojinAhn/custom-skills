@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>{{TITLE}}</title>
+<link rel="stylesheet" as="style" crossorigin
+  href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: #f7f4ec;
+    --surface: #ffffff;
+    --ink: #1c1d1f;
+    --sub: #63665f;
+    --line: #e4dfd0;
+    --a: #2b5a8c;        /* 관점 A 색상 */
+    --a-soft: #e8eff6;
+    --b: #c2691f;        /* 관점 B 색상 */
+    --b-soft: #fbecdd;
+    --good: #2f7a53;
+    --highlight: #fff1b8;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: "Pretendard Variable", Pretendard, -apple-system, system-ui, sans-serif;
+    color: var(--ink);
+    background: var(--bg);
+    line-height: 1.6;
+    font-size: 16px;
+  }
+  .mono { font-family: "JetBrains Mono", monospace; }
+  a { color: var(--a); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+
+  .wrap { width: min(860px, calc(100% - 2rem)); margin: 0 auto; padding: 2.4rem 0 4.5rem; }
+
+  .metabar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 0.8rem;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 0.74rem;
+    color: var(--sub);
+    margin-bottom: 1.6rem;
+  }
+  .metabar span {
+    border: 1px solid var(--line);
+    background: var(--surface);
+    border-radius: 999px;
+    padding: 0.2rem 0.65rem;
+  }
+
+  .hero { margin-bottom: 2.6rem; }
+  .eyebrow {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--sub);
+    letter-spacing: 0.02em;
+    margin-bottom: 0.6rem;
+  }
+  h1 {
+    font-size: clamp(1.75rem, 4.4vw, 2.5rem);
+    font-weight: 800;
+    line-height: 1.35;
+    letter-spacing: -0.01em;
+    margin: 0 0 1rem;
+  }
+  .hero p {
+    max-width: 62ch;
+    font-size: 1.02rem;
+    color: #34362f;
+    margin: 0;
+  }
+  .hero .badge {
+    display: inline-block;
+    font-weight: 700;
+    font-size: 0.92rem;
+    padding: 0.02em 0.4em;
+    border-radius: 6px;
+  }
+  .hero .badge.a { background: var(--a-soft); color: var(--a); }
+  .hero .badge.b { background: var(--b-soft); color: var(--b); }
+
+  section {
+    margin-top: 2.8rem;
+    padding-top: 2.2rem;
+    border-top: 1px solid var(--line);
+  }
+  .sec-num {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 0.78rem;
+    color: var(--sub);
+    margin-bottom: 0.3rem;
+  }
+  h2 {
+    font-size: 1.32rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    margin: 0 0 0.6rem;
+  }
+  .sec-note { color: var(--sub); font-size: 0.94rem; max-width: 62ch; margin: 0 0 1.3rem; }
+
+  .positions { display: grid; grid-template-columns: 1fr 1fr; gap: 0.9rem; }
+  @media (max-width: 620px) { .positions { grid-template-columns: 1fr; } }
+  .pos {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 1.1rem 1.2rem;
+  }
+  .pos .tag {
+    display: inline-block;
+    font-size: 0.74rem;
+    font-weight: 700;
+    padding: 0.15rem 0.6rem;
+    border-radius: 999px;
+    margin-bottom: 0.6rem;
+  }
+  .pos.a .tag { background: var(--a-soft); color: var(--a); }
+  .pos.b .tag { background: var(--b-soft); color: var(--b); }
+  .pos h3 { font-size: 1.05rem; font-weight: 700; margin: 0 0 0.55rem; }
+  .pos ul { margin: 0; padding-left: 1.15rem; font-size: 0.9rem; color: #34362f; }
+  .pos li { margin-bottom: 0.4rem; }
+
+  .gauge-block {
+    display: grid;
+    grid-template-columns: 1.15fr 1fr;
+    gap: 1.4rem;
+    align-items: center;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 1.3rem;
+  }
+  @media (max-width: 720px) { .gauge-block { grid-template-columns: 1fr; } }
+  .gauge-block svg { width: 100%; height: auto; display: block; }
+  .readout .big { font-family: "JetBrains Mono", monospace; font-size: 2.3rem; font-weight: 700; color: var(--b); line-height: 1; }
+  .readout .big span { font-size: 1rem; color: var(--sub); font-weight: 400; }
+  .readout p { font-size: 0.9rem; color: #34362f; margin: 0.7rem 0 0; }
+  .readout .legend { display: flex; gap: 1rem; margin-top: 0.9rem; font-size: 0.78rem; color: var(--sub); flex-wrap: wrap; }
+  .readout .legend .sw { display: inline-block; width: 0.6rem; height: 0.6rem; border-radius: 2px; margin-right: 0.35rem; }
+
+  /* 댓글 리스트: 긴 영문 닉네임에도 안 깨지는 flex 레이아웃 */
+  .cmts { display: flex; flex-direction: column; gap: 0.55rem; }
+  .cmt {
+    display: flex;
+    gap: 0.7rem;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 0.85rem 0.95rem;
+  }
+  .cmt.r1 { margin-left: clamp(0.6rem, 4vw, 1.6rem); border-left: 3px solid var(--a); }
+  .cmt.r2 { margin-left: clamp(1.1rem, 8vw, 3rem); border-left: 3px solid var(--b); }
+  .cmt-avatar {
+    flex: 0 0 auto;
+    width: 2rem;
+    height: 2rem;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: #fff;
+    background: var(--a);
+  }
+  .r1 .cmt-avatar { background: var(--a); opacity: 0.85; }
+  .r2 .cmt-avatar { background: var(--b); }
+  .cmt-body { flex: 1 1 auto; min-width: 0; }
+  .cmt-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.4rem 0.55rem;
+    margin-bottom: 0.35rem;
+  }
+  .cmt-name {
+    font-weight: 700;
+    font-size: 0.88rem;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+  }
+  .cmt-time { font-size: 0.74rem; color: var(--sub); white-space: nowrap; }
+  .cmt-score {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 0.72rem;
+    color: var(--good);
+    background: #eaf5ee;
+    border-radius: 999px;
+    padding: 0.05rem 0.5rem;
+    white-space: nowrap;
+    margin-left: auto;
+  }
+  .cmt-text {
+    font-size: 0.92rem;
+    color: #23251c;
+    margin: 0;
+    overflow-wrap: break-word;
+  }
+
+  .loop-card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 1.2rem;
+  }
+  .loop-card svg { width: 100%; height: auto; display: block; }
+  .loop-cap { text-align: right; font-size: 0.78rem; color: var(--sub); margin-top: 0.6rem; }
+
+  .quotes { display: flex; flex-direction: column; gap: 0.6rem; }
+  .qcard {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 0.95rem 1.1rem;
+  }
+  .qcard blockquote { margin: 0 0 0.5rem; font-size: 0.92rem; color: #23251c; }
+  .qcard mark { background: var(--highlight); border-radius: 3px; padding: 0 0.15em; }
+  .qcard cite { display: block; font-style: normal; font-size: 0.76rem; color: var(--sub); }
+
+  .tbl-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+  table.pos-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; min-width: 460px; }
+  table.pos-table th {
+    text-align: left;
+    font-size: 0.74rem;
+    font-weight: 600;
+    color: var(--sub);
+    border-bottom: 1px solid var(--line);
+    padding: 0.6rem 0.7rem;
+  }
+  table.pos-table td { padding: 0.65rem 0.7rem; border-bottom: 1px solid var(--line); vertical-align: middle; }
+  table.pos-table tr:last-child td { border-bottom: none; }
+  .lean-track { width: 110px; height: 8px; border-radius: 999px; background: linear-gradient(90deg, var(--a), var(--b)); opacity: 0.3; position: relative; }
+  .lean-mark { position: absolute; top: -3px; width: 3px; height: 14px; background: var(--ink); border-radius: 2px; }
+
+  .res-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.6rem; }
+  @media (max-width: 620px) { .res-grid { grid-template-columns: 1fr; } }
+  .res {
+    display: block;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 0.9rem 1rem;
+  }
+  .res .kind { font-size: 0.72rem; color: var(--sub); margin-bottom: 0.3rem; }
+  .res strong { display: block; font-size: 0.96rem; margin-bottom: 0.25rem; }
+  .res span { font-size: 0.82rem; color: var(--sub); }
+
+  .glossary { display: flex; flex-direction: column; gap: 0.5rem; }
+  .gterm {
+    display: grid;
+    grid-template-columns: 9rem 1fr;
+    gap: 0.8rem;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid var(--line);
+  }
+  @media (max-width: 560px) { .gterm { grid-template-columns: 1fr; gap: 0.15rem; } }
+  .gterm .term { font-weight: 700; font-size: 0.92rem; }
+  .gterm .desc { color: var(--sub); font-size: 0.88rem; }
+
+  .summary {
+    background: var(--ink);
+    color: #f2efe4;
+    border-radius: 16px;
+    padding: 1.6rem 1.7rem;
+  }
+  .summary h2 { color: #fff; margin-bottom: 0.8rem; }
+  .summary p { margin: 0 0 0.7rem; color: #d8d4c6; max-width: 64ch; }
+  .summary p:last-child { margin-bottom: 0; }
+  .summary em { font-style: normal; color: #f2c07a; }
+
+  footer { margin-top: 2rem; font-size: 0.76rem; color: var(--sub); text-align: center; }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <!-- 상단 메타바: 기간 / 출처 / 출발점 -->
+    <div class="metabar">
+      <span>기간 {{DATE_RANGE}}</span>
+      <span>출처 {{SOURCES}}</span>
+      <span>출발점 {{ORIGIN}}</span>
+    </div>
+
+    <!-- 히어로: 담백한 제목 + 리드 문단. 법정/전쟁/재판 비유 금지 -->
+    <div class="hero">
+      <p class="eyebrow">TREND BRIEFING</p>
+      <h1>{{TITLE}}</h1>
+      <p>
+        {{LEDE}} <span class="badge a">{{관점 A 한 줄}}</span> 쪽과
+        <span class="badge b">{{관점 B 한 줄}}</span> 쪽이 갈립니다.
+      </p>
+    </div>
+
+    <!-- 섹션 01: 관점 비교 카드 (필수) -->
+    <section>
+      <p class="sec-num">01</p>
+      <h2>두 관점의 요지</h2>
+      <div class="positions">
+        <div class="pos a">
+          <span class="tag">관점 A · {{출처}}</span>
+          <h3>{{관점 A 제목}}</h3>
+          <ul>
+            <li>{{근거 1}}</li>
+            <li>{{근거 2}}</li>
+          </ul>
+        </div>
+        <div class="pos b">
+          <span class="tag">관점 B · {{출처}}</span>
+          <h3>{{관점 B 제목}}</h3>
+          <ul>
+            <li>{{근거 1}}</li>
+            <li>{{근거 2}}</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- 섹션 02: 게이지/스펙트럼 (선택, 정량화 가능한 축이 있을 때만) -->
+    <section>
+      <p class="sec-num">02</p>
+      <h2>{{게이지 제목}}</h2>
+      <p class="sec-note">{{게이지 설명}}</p>
+      <div class="gauge-block">
+        <svg viewBox="0 0 520 290" role="img" aria-label="스펙트럼 게이지">
+          <!-- 반원 5분할, needle 각도는 위치에 따라 조정. 기존 index.html 참고 -->
+        </svg>
+        <div class="readout">
+          <div class="big">{{값}} <span>/ {{최대값}}</span></div>
+          <p>{{근거 설명}}</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 섹션 03: 댓글/커뮤니티 반응 정리 (한글 번역, 득표순) -->
+    <section>
+      <p class="sec-num">03</p>
+      <h2>{{커뮤니티명}} 댓글 정리 (한글 번역)</h2>
+      <p class="sec-note">원 질문: “{{원문 인용}}” — <a href="{{원문 URL}}">{{원문 작성자}}</a></p>
+      <div class="cmts">
+        <div class="cmt">
+          <div class="cmt-avatar">{{이니셜}}</div>
+          <div class="cmt-body">
+            <div class="cmt-meta"><span class="cmt-name">{{닉네임}}</span><span class="cmt-time">{{시간}}</span><span class="cmt-score">▲{{득표}}</span></div>
+            <p class="cmt-text">“{{번역된 댓글}}”</p>
+          </div>
+        </div>
+        <!-- 답글은 class="cmt r1" (1단계) 또는 "cmt r2" (2단계) 추가 -->
+      </div>
+    </section>
+
+    <!-- 섹션 04: 흐름도/다이어그램 (선택) -->
+    <section>
+      <p class="sec-num">04</p>
+      <h2>{{다이어그램 제목}}</h2>
+      <p class="sec-note">{{다이어그램 설명}}</p>
+      <div class="loop-card">
+        <svg viewBox="0 0 520 260" role="img" aria-label="흐름도"><!-- 박스+화살표 다이어그램 --></svg>
+        <p class="loop-cap"><a href="{{출처 URL}}">{{출처}} →</a></p>
+      </div>
+    </section>
+
+    <!-- 섹션 05: 인용 카드 (원문 발췌 번역, mark로 핵심 문구 강조) -->
+    <section>
+      <p class="sec-num">05</p>
+      <h2>{{인용 섹션 제목}}</h2>
+      <div class="quotes">
+        <div class="qcard">
+          <blockquote>“{{인용문 앞부분}} <mark>{{강조할 핵심 문구}}</mark> {{인용문 뒷부분}}”</blockquote>
+          <cite>{{출처명}} · <a href="{{URL}}">{{도메인}}</a></cite>
+        </div>
+      </div>
+    </section>
+
+    <!-- 섹션 06: 출처별 포지션 테이블 -->
+    <section>
+      <p class="sec-num">06</p>
+      <h2>출처별 포지션</h2>
+      <p class="sec-note">막대는 관점 A ↔ 관점 B 축 위 대략적 위치입니다.</p>
+      <div class="tbl-wrap">
+        <table class="pos-table">
+          <thead><tr><th>출처</th><th>요지</th><th>포지션</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><a href="{{URL}}">{{출처명}}</a></td>
+              <td>{{한줄 요지}}</td>
+              <td><div class="lean-track"><div class="lean-mark" style="left:{{0-100}}%"></div></div></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- 섹션 07: 참고 자료 전체 -->
+    <section>
+      <p class="sec-num">07</p>
+      <h2>참고 자료 전체</h2>
+      <p class="sec-note">{{수집 방법 한 줄}}</p>
+      <div class="res-grid">
+        <a class="res" href="{{URL}}">
+          <div class="kind">{{종류 · 날짜}}</div>
+          <strong>{{제목}}</strong>
+          <span>{{한줄 설명}}</span>
+        </a>
+      </div>
+    </section>
+
+    <!-- 섹션 08: 용어 정리 (전문용어가 등장할 때만) -->
+    <section>
+      <p class="sec-num">08</p>
+      <h2>용어 정리</h2>
+      <div class="glossary">
+        <div class="gterm"><span class="term">{{용어}}</span><span class="desc">{{설명}}</span></div>
+      </div>
+    </section>
+
+    <!-- 마무리: "한 줄 정리" 박스. 판결/결론/승패 프레이밍 금지, 관찰 요약만 -->
+    <section>
+      <div class="summary">
+        <h2>한 줄 정리</h2>
+        <p>{{핵심 관찰 1}}</p>
+        <p>{{핵심 관찰 2 — 단서·한계 포함}}</p>
+      </div>
+    </section>
+
+    <footer>작성 {{작성일}} · 출처: {{수집 도구}} · {{발행처}}</footer>
+  </div>
+</body>
+</html>
