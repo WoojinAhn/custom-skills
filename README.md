@@ -92,6 +92,7 @@ python3 -m pytest codex-context-migration/scripts/tests
 | [`codex-context-migration`](codex-context-migration/README.md) | Audit-first setup or migration from Claude-era repo context into Codex `AGENTS.md`. |
 | [`triangulated-review`](triangulated-review/SKILL.md) | Three-reviewer parallel code audit with fact-checking for single-reviewer findings. Cost-pruned form of a larger multi-reviewer experiment. |
 | [`zoom-caption-capture`](zoom-caption-capture/SKILL.md) | Stream Zoom Web Client live captions via a `MutationObserver` inside `iframe#webclient`, with token-level overlap merging and Blob-download dump. Lossless raw buffer + deferred cleanup so an LLM pass can produce final minutes. |
+| [`session-harvest`](session-harvest/SKILL.md) | End-of-session sweep that extracts durable value (tooling issues, docs, memory, hygiene flags) through a strict effectiveness gate. Zero findings is a valid result; skips are reported, not silent. |
 
 ### `codex-context-migration`
 
@@ -131,6 +132,20 @@ still be cleaned up from the captured payload.
 Best fit: web-client Zoom meetings where captions are already enabled. It does
 not join meetings for the user, does not work with the native Zoom app, and
 does not infer full speaker names when Zoom only exposes caption initials.
+
+### `session-harvest`
+
+Use when a work session is wrapping up and you want to extract durable value
+before context is lost. The skill sweeps four lanes — tooling friction (issue
+tracker), project context (docs/CLAUDE.md), memory, and hygiene — and runs every
+candidate through a three-point effectiveness gate (absorption / evidence /
+usage pattern) so that nothing speculative gets recorded.
+
+Two design points from the originating sessions: a staleness sweep (your own
+changes rot nearby docs the same day — fix the contradictions now), and
+anti-forcing rules ("extract as much as possible" means sweep every lane, not
+lower the bar; zero findings is a valid result and skips are reported with
+reasons).
 
 ## Authoring conventions
 

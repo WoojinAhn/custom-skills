@@ -84,6 +84,7 @@ python3 codex-context-migration/scripts/inventory.py \
 | [`codex-context-migration`](codex-context-migration/README.md) | Claude-era repo context를 Codex `AGENTS.md`로 audit-first 세팅/이관. |
 | [`triangulated-review`](triangulated-review/SKILL.md) | 3 reviewer 패러럴 코드 감사 + 단일 reviewer 발견에 대한 fact-check. 더 큰 multi-reviewer 실험을 cost-pruned한 형태. |
 | [`zoom-caption-capture`](zoom-caption-capture/SKILL.md) | Zoom 웹 클라이언트의 `iframe#webclient` 내부에 `MutationObserver`를 붙여 실시간 자막을 스트리밍 캡처. 토큰 단위 overlap merge + Blob 다운로드로 dump. raw buffer는 무손실 보존, cleanup은 LLM pass에서 처리. |
+| [`session-harvest`](session-harvest/SKILL.md) | 세션 종료 전 durable value(툴링 이슈, 문서, 메모리, hygiene)를 실효성 게이트로 걸러 추출하는 마무리 스윕. 0건도 유효한 결과이며, 스킵은 침묵이 아니라 사유와 함께 보고. |
 
 ### `codex-context-migration`
 
@@ -122,6 +123,18 @@ overlap merge는 중간 결과로만 사용합니다. 최종 회의록은 captur
 web-client Zoom 회의에서 caption이 이미 켜져 있을 때 가장 잘 맞습니다. 사용자를
 대신해 회의에 join하지 않고, native Zoom app에는 적용되지 않으며, Zoom이
 caption initial만 노출하는 경우 full speaker name을 추론하지 않습니다.
+
+### `session-harvest`
+
+작업 세션을 마무리할 때, context가 사라지기 전에 durable value를 추출하는
+스킬입니다. 툴링 friction(issue tracker), 프로젝트 context(docs/CLAUDE.md),
+메모리, hygiene의 네 lane을 스윕하고, 모든 후보를 3점검 실효성 게이트(흡수 /
+근거 / 사용패턴)에 통과시켜 speculative한 기록이 남지 않게 합니다.
+
+원 세션에서 나온 두 가지 설계 포인트: staleness sweep(내 세션의 변경이 그날
+바로 주변 문서를 낡게 만든다 — 모순을 지금 고친다), 그리고 anti-forcing
+rule("최대한 다 뽑아줘"는 모든 lane을 스윕하라는 뜻이지 기준을 낮추라는 뜻이
+아니다; 0건도 유효한 결과이고 스킵은 사유와 함께 보고한다)입니다.
 
 ## 작성 컨벤션
 
