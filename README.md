@@ -93,6 +93,8 @@ python3 -m pytest codex-context-migration/scripts/tests
 | [`triangulated-review`](triangulated-review/SKILL.md) | Three-reviewer parallel code audit with fact-checking for single-reviewer findings. Cost-pruned form of a larger multi-reviewer experiment. |
 | [`zoom-caption-capture`](zoom-caption-capture/SKILL.md) | Stream Zoom Web Client live captions via a `MutationObserver` inside `iframe#webclient`, with token-level overlap merging and Blob-download dump. Lossless raw buffer + deferred cleanup so an LLM pass can produce final minutes. |
 | [`session-harvest`](session-harvest/SKILL.md) | End-of-session sweep that extracts durable value (tooling issues, docs, memory, hygiene flags) through a strict effectiveness gate. Zero findings is a valid result; skips are reported, not silent. |
+| [`trend-briefing-doc`](trend-briefing-doc/SKILL.md) | Turn a single link or topic phrase into a researched Korean HTML trend briefing structured as "position A vs position B", from a bundled card-style template. Understated report tone — no courtroom/war metaphors. |
+| [`ai-status`](ai-status/SKILL.md) | Batch-check AI/dev service status (Claude, OpenAI, Cursor, GitHub, Gemini + 10 extended) from machine-readable status APIs, distinguishing operational outages from policy/model-recall/FedRAMP scope incidents. |
 
 ### `codex-context-migration`
 
@@ -146,6 +148,33 @@ changes rot nearby docs the same day — fix the contradictions now), and
 anti-forcing rules ("extract as much as possible" means sweep every lane, not
 lower the bar; zero findings is a valid result and skips are reported with
 reasons).
+
+### `trend-briefing-doc`
+
+Use when a single community link (Reddit/HN/X) or a bare topic phrase should
+become a researched, balanced trend briefing. The skill gathers 5–6 sources
+across both sides of the discourse, classifies them into "position A vs
+position B", and renders a Korean HTML report from the bundled
+`template.html` (Pretendard + JetBrains Mono, card layout, mobile-responsive).
+
+House style is deliberately understated: quoted comments are translated with
+links to the originals, and the closing section states observations and
+limitations instead of declaring a winner. The default deliverable is a
+self-contained HTML file; publishing integrations are optional.
+
+### `ai-status`
+
+Use when the user asks whether an AI/dev service is down. The bundled
+`scripts/check_status.py` fetches machine-readable status APIs in parallel
+(6 core providers direct; 10 more via the third-party AIWatch cache with
+`--extended`) — no HTML scraping, no Downdetector.
+
+The core lesson encoded here: **Statuspage incident impact is not operational
+state.** Policy/compliance incidents (model recalls, export controls) and
+scope-limited incidents (FedRAMP-only) are reported in a separate section
+while components stay green, so "Claude shows a red banner" doesn't get
+mis-reported as "Claude is down". See `reference.md` for provider tables and
+incident-kind taxonomy.
 
 ## Authoring conventions
 
