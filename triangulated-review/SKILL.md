@@ -1,13 +1,15 @@
 ---
 name: triangulated-review
-description: Use when planning a substantial code-review pass — post-merge of a feature, pre-release audit, or any moment a single-reviewer pass would feel too low-confidence to trust without verification.
+description: Use when planning a substantial code-review pass — post-merge of a feature, pre-release audit, or any moment a single-reviewer pass would feel too low-confidence to trust without verification. Triggers include triangulated review, 삼각 리뷰, parallel review pass.
 argument-hint: [scope-hint]
 allowed-tools: Bash, Read, Grep
 ---
 
 # Triangulated Review
 
-Three independent reviewers in parallel → consolidate → fact-check single-reviewer findings → apply in clusters.
+Three independent reviewers in parallel → consolidate → fact-check single-reviewer findings → **deliver a confirmed findings report**.
+
+This skill stops at review confidence. It does **not** apply fixes, open tracking issues, commit, or verify quantitative README claims.
 
 This skill is the codified, cost-pruned form of the 5-reviewer pass run on CursorMeter (see #61) — the post-mortem on that pass concluded that 5 lenses were noisy and that fact-check alone replaces a full cross-comment round.
 
@@ -17,6 +19,17 @@ This skill is the codified, cost-pruned form of the 5-reviewer pass run on Curso
 - Any time you'd otherwise trust a single reviewer blindly
 
 Skip for: trivial PRs, single-file fixes, formatter-only diffs.
+
+## Out of scope
+
+Do **not** do these as part of this skill:
+
+- Applying fixes or rewriting code
+- Creating tracking issues / clustering commits
+- Running `swift test` (or repo equivalent) as a gate between fix clusters
+- A/B measuring memory, latency, binary size, or other release-note claims
+
+If the user asks to apply findings afterward, that is a **separate** follow-up — not this skill's workflow.
 
 ## Scope
 Read the repo's `CLAUDE.md` first and honor anything explicitly out-of-scope or accepted-as-known-limitation. Default scope = entire `Sources/` + `Tests/` (or repo equivalent) of the current branch. Override with the argument if the user supplied one (e.g. "files changed since v0.2.1").
@@ -44,7 +57,7 @@ Why the MEDIUM exclusion: in the original 5-reviewer run, 22 MEDIUM findings wer
 
 After all three complete:
 - Tag each finding by its source reviewer.
-- **Consensus (2+ reviewers agree on the same file/area)** → trust without fact-check, apply.
+- **Consensus (2+ reviewers agree on the same file/area)** → trust without fact-check; mark `confirmed (consensus)`.
 - **Single reviewer** → flag for the round-2 fact-check.
 
 Show the user a compact table before proceeding:
@@ -52,7 +65,7 @@ Show the user a compact table before proceeding:
 ```
 | Finding | Reviewers | Action |
 |---|---|---|
-| <one-line summary> | senior + codex | apply (consensus) |
+| <one-line summary> | senior + codex | confirmed (consensus) |
 | <one-line summary> | codex only | fact-check |
 ```
 
@@ -68,30 +81,21 @@ This catches LLM misreads of call chains and conceptual groupings that don't sur
 
 **Do not** dispatch a cross-comment round between reviewers. Over-engineered: fact-check alone was sufficient in practice.
 
-## Application
+## Deliverable
 
-Create one tracking issue listing all confirmed findings, with severity and source.
+End with a single confirmed-findings report:
 
-Apply in clusters by topic, **one commit per cluster**:
+```
+| Finding | Severity | Sources | Status | Evidence / fix sketch |
+|---|---|---|---|---|
+| … | HIGH | senior + codex | confirmed (consensus) | … |
+| … | CRITICAL | simplify | confirmed | … |
+| … | HIGH | codex | refuted | … |
+```
 
-| Cluster type | Risk | Notes |
-|---|---|---|
-| Mechanical (enum extraction, guard inserts, formatter cache) | low | batch OK |
-| State-machine (cache reset, observer split, retry logic) | medium | separate cluster; tests must cover the changed transitions |
-| UI / framework workarounds (NSPopover, NSStackView, layout) | high | separate cluster; **manual smoke test mandatory** before commit |
-
-Run `swift test` (or repo equivalent) between clusters. A failing cluster doesn't block the next one — drop it, file as remaining work, continue.
-
-## Quantitative-claim verification — separate step
-
-The review itself does **not** verify README/release-notes claims of memory footprint, latency, binary size, etc. Run a separate A/B step:
-
-1. `gh release download <prev-tag>`
-2. Launch the previous artifact, measure
-3. Launch the current build, measure
-4. If the regression exceeds measurement noise, file a separate issue and update the docs honestly before publishing
-
-Reference: `~/home/CLAUDE.md § Measurable README claims`.
+Optional closing lines (no execution):
+- Top three to fix first (from consensus + confirmed)
+- Explicit note that application, commits, and quantitative claim checks are out of scope
 
 ## Cost discipline
 
@@ -101,8 +105,8 @@ Each reviewer reads the whole codebase. Three reviewers ≈ 3× read cost. Resis
 
 - Asking for "all severity levels" → you'll get noise you ignore anyway
 - Trusting a single high-confidence reviewer because they sound authoritative → always fact-check single-reviewer claims
-- Applying without clustering → one giant commit makes bisecting impossible
-- Treating a memory/latency claim in the release notes as "covered by the review" → it isn't; A/B against the previous release zip
+- Sliding from review into apply/commit without the user asking → out of scope; stop at the report
+- Treating a memory/latency claim in the release notes as "covered by the review" → it isn't; that needs a separate A/B pass outside this skill
 
 ## Skill maturity disclosure
 
@@ -112,7 +116,7 @@ This skill was **distilled from a single real session** (CursorMeter #61) rather
 
 | Date | Trigger | Rationalization / loophole observed | Fix applied |
 |------|---------|-------------------------------------|-------------|
-| _(empty — first real invocation will populate)_ |  |  |  |
+| 2026-07-19 | Scope creep in skill body | Application + A/B measurement lived in the same skill as review orchestration, pulling agents past the confidence deliverable | Trimmed to review-only: stop at confirmed findings report; apply/issue/commit/A/B explicitly out of scope |
 
 ### Open loopholes (untested)
 
@@ -120,7 +124,6 @@ These are paths the original session didn't stress; future invocations should wa
 
 - The "HIGH/CRITICAL only — no MEDIUM" instruction in reviewer prompts has not been verified to actually suppress MEDIUM output in practice. Reviewers may comply, partially comply, or rationalize ("this is HIGH because…").
 - Skipping the cross-comment round between reviewers is asserted to be sufficient. Untested on a scenario where fact-check itself returns ambiguous verdicts.
-- Cluster ordering (mechanical → state-machine → UI) has not been stress-tested against a codebase where the three categories have hidden dependencies.
-- The 3-reviewer cost claim ("≈ half of 5-reviewer") is rule-of-thumb, not token-measured. A real measurement would validate or reset the assumption.
+- Agents may still try to "helpfully" start applying confirmed findings after the report — watch for this and refuse unless the user starts a separate apply pass.
 
 Closing a loophole = add a row to the refactor log and tighten the relevant section above.
