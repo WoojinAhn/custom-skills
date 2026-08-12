@@ -26,6 +26,25 @@ three — failing any one means don't do it:
 Record the verdict where the artifact lives. A fail means discard, not backlog —
 revive with evidence if the demand recurs.
 
+## Two-Phase Flow: Propose, Then Execute
+
+The harvest is two separate phases. Phase 1 produces a proposal list; Phase 2 runs
+only on the approved subset.
+
+**Phase 1 — Harvest & propose (read-only).** Sweep the four lanes, apply the
+effectiveness gate, dup-check trackers, open docs to verify staleness. Then present
+one numbered candidate list: per item, the lane, the destination (issue/doc/memory/
+deletion target), and a one-line rationale — plus the 의도적 스킵 list. Inspection is
+fine in this phase; creating issues, editing docs/CLAUDE.md, saving memories, and
+deleting files are not.
+
+**Approval.** Ask which items to run (AskUserQuestion with multiSelect when
+available, otherwise a numbered list and wait). The user may approve all, a subset,
+or none — "none" is a valid harvest outcome.
+
+**Phase 2 — Execute.** Apply exactly the approved items, then report per the Output
+Shape below. Unapproved items are dropped, not queued.
+
 ## The Four Lanes
 
 Sweep each lane; for every candidate apply the effectiveness gate and the memory
@@ -59,5 +78,6 @@ those specific files and fix contradictions NOW.
 
 ## Output Shape
 
-Per lane: what was done (with file/issue refs) → then a **"의도적 스킵" list with
-one-line reasons**. Skips are deliverables, not omissions.
+After Phase 2: per lane, what was done (with file/issue refs) → then the **"의도적
+스킵" list with one-line reasons** (gate-fails and user-rejected items alike). Skips
+are deliverables, not omissions.
