@@ -12,7 +12,7 @@ This repository is published as skill source material. It is not packaged as a
 Codex plugin yet; plugin packaging is optional and may be added later for a
 marketplace-style install experience.
 
-Install a skill by symlinking or copying the skill directory into
+Install a skill by symlinking the skill directory into
 `${CODEX_HOME:-$HOME/.codex}/skills/`:
 
 ```bash
@@ -56,6 +56,11 @@ Claude Code can use the same skill source format. Symlink the skill into
 ln -s <repo-path>/<skill-name> ~/.claude/skills/<skill-name>
 ```
 
+> Symlink rather than copy, on either path. A copied skill drifts silently: edits made
+> while using it land in the installed copy, never reach the repo, and the divergence is
+> invisible until someone diffs the two. Both drifts found so far — a skill revised
+> in place for ten days, and one that was never committed anywhere — were copy-installs.
+
 For `codex-context-migration`, Codex is still the preferred executor because
 the skill validates Codex instruction loading and writes Codex-native
 `AGENTS.md` files.
@@ -92,7 +97,7 @@ python3 -m pytest codex-context-migration/scripts/tests
 | [`codex-context-migration`](codex-context-migration/README.md) | Audit-first setup or migration from Claude-era repo context into Codex `AGENTS.md`. |
 | [`triangulated-review`](triangulated-review/SKILL.md) | Three-reviewer parallel code audit with fact-checking for single-reviewer findings. Cost-pruned form of a larger multi-reviewer experiment. |
 | [`zoom-caption-capture`](zoom-caption-capture/SKILL.md) | Stream Zoom Web Client live captions via a `MutationObserver` inside `iframe#webclient`, with token-level overlap merging and Blob-download dump. Lossless raw buffer + deferred cleanup so an LLM pass can produce final minutes. |
-| [`session-harvest`](session-harvest/SKILL.md) | End-of-session sweep that extracts durable value (tooling issues, docs, memory, hygiene flags) through a strict effectiveness gate. Zero findings is a valid result; skips are reported, not silent. |
+| [`session-harvest`](session-harvest/SKILL.md) | End-of-session sweep that extracts durable value (tooling issues, docs, memory, hygiene flags) through a strict effectiveness gate. Proposes read-only first and executes only the approved subset. Zero findings is a valid result; skips are reported, not silent. |
 | [`trend-briefing-doc`](trend-briefing-doc/SKILL.md) | Turn a single link or topic phrase into a researched Korean HTML trend briefing structured as "position A vs position B", from a bundled card-style template. Understated report tone — no courtroom/war metaphors. |
 | [`ai-status`](ai-status/SKILL.md) | Batch-check AI/dev service status (Claude, OpenAI, Cursor, GitHub, Gemini + 10 extended) from machine-readable status APIs, distinguishing operational outages from policy/model-recall/FedRAMP scope incidents. |
 
@@ -142,6 +147,12 @@ before context is lost. The skill sweeps four lanes — tooling friction (issue
 tracker), project context (docs/CLAUDE.md), memory, and hygiene — and runs every
 candidate through a three-point effectiveness gate (absorption / evidence /
 usage pattern) so that nothing speculative gets recorded.
+
+The sweep runs in two phases. Phase 1 is read-only: it inspects, applies the gate,
+and presents one numbered candidate list with a destination and a rationale per item,
+alongside the deliberate-skip list. Nothing is created, edited, or deleted until you
+approve a subset — approving none is a valid outcome, and unapproved items are dropped
+rather than queued as backlog.
 
 Two design points from the originating sessions: a staleness sweep (your own
 changes rot nearby docs the same day — fix the contradictions now), and

@@ -13,7 +13,7 @@
 추가할 수 있습니다.
 
 스킬을 설치하려면 skill 디렉터리를 `${CODEX_HOME:-$HOME/.codex}/skills/`에
-symlink하거나 복사합니다:
+symlink합니다:
 
 ```bash
 mkdir -p "${CODEX_HOME:-$HOME/.codex}/skills"
@@ -56,6 +56,11 @@ Claude Code도 같은 skill source 형식을 사용할 수 있습니다.
 ln -s <repo-path>/<skill-name> ~/.claude/skills/<skill-name>
 ```
 
+> 어느 경로든 복사가 아니라 symlink로 설치합니다. 복사본은 조용히 갈라집니다 — 스킬을
+> 쓰면서 고친 내용이 설치본에만 남고 레포에는 닿지 않으며, 양쪽을 diff하기 전까지
+> 드러나지 않습니다. 지금까지 발견된 드리프트 2건(열흘간 설치본에서만 개선된 스킬,
+> 그리고 아예 어느 레포에도 커밋되지 않았던 스킬) 모두 복사 설치였습니다.
+
 `codex-context-migration`은 Codex instruction loading 검증과 Codex-native
 `AGENTS.md` 작성을 수행하므로, 실행자는 Codex가 더 적합합니다.
 
@@ -84,7 +89,7 @@ python3 codex-context-migration/scripts/inventory.py \
 | [`codex-context-migration`](codex-context-migration/README.md) | Claude-era repo context를 Codex `AGENTS.md`로 audit-first 세팅/이관. |
 | [`triangulated-review`](triangulated-review/SKILL.md) | 3 reviewer 패러럴 코드 감사 + 단일 reviewer 발견에 대한 fact-check. 더 큰 multi-reviewer 실험을 cost-pruned한 형태. |
 | [`zoom-caption-capture`](zoom-caption-capture/SKILL.md) | Zoom 웹 클라이언트의 `iframe#webclient` 내부에 `MutationObserver`를 붙여 실시간 자막을 스트리밍 캡처. 토큰 단위 overlap merge + Blob 다운로드로 dump. raw buffer는 무손실 보존, cleanup은 LLM pass에서 처리. |
-| [`session-harvest`](session-harvest/SKILL.md) | 세션 종료 전 durable value(툴링 이슈, 문서, 메모리, hygiene)를 실효성 게이트로 걸러 추출하는 마무리 스윕. 0건도 유효한 결과이며, 스킵은 침묵이 아니라 사유와 함께 보고. |
+| [`session-harvest`](session-harvest/SKILL.md) | 세션 종료 전 durable value(툴링 이슈, 문서, 메모리, hygiene)를 실효성 게이트로 걸러 추출하는 마무리 스윕. 먼저 읽기 전용으로 후보를 제시하고 승인된 항목만 실행. 0건도 유효한 결과이며, 스킵은 침묵이 아니라 사유와 함께 보고. |
 | [`trend-briefing-doc`](trend-briefing-doc/SKILL.md) | 링크 하나 또는 주제 한 줄만으로 리서치를 수행해 "입장 A vs 입장 B" 구조의 한국어 HTML 트렌드 브리핑을 생성. 카드형 담백한 리포트 톤, 법정/전쟁 메타포 금지. 템플릿 동봉. |
 | [`ai-status`](ai-status/SKILL.md) | AI/개발 서비스 상태(Claude, OpenAI, Cursor, GitHub, Gemini + 확장 10개)를 machine-readable status API로 일괄 확인. 운영 장애와 정책/모델 recall/FedRAMP scope incident를 구분해 보고. |
 
@@ -132,6 +137,11 @@ caption initial만 노출하는 경우 full speaker name을 추론하지 않습�
 스킬입니다. 툴링 friction(issue tracker), 프로젝트 context(docs/CLAUDE.md),
 메모리, hygiene의 네 lane을 스윕하고, 모든 후보를 3점검 실효성 게이트(흡수 /
 근거 / 사용패턴)에 통과시켜 speculative한 기록이 남지 않게 합니다.
+
+스윕은 두 단계로 나뉩니다. 1단계는 읽기 전용입니다 — 조사하고, 게이트를 적용하고,
+항목별 목적지와 사유가 붙은 번호 후보 목록을 의도적 스킵 목록과 함께 제시합니다.
+승인 전까지는 아무것도 생성·수정·삭제하지 않으며, 전부 거절하는 것도 유효한 결과입니다.
+미승인 항목은 백로그로 쌓이지 않고 폐기됩니다.
 
 원 세션에서 나온 두 가지 설계 포인트: staleness sweep(내 세션의 변경이 그날
 바로 주변 문서를 낡게 만든다 — 모순을 지금 고친다), 그리고 anti-forcing
