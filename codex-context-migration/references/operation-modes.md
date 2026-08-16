@@ -119,6 +119,26 @@ or outside the intended migration scope.
   bridge, but do not rewrite or delete Claude-native behavior just to make the
   workspace look Codex-only.
 
+Confirm target posture in the user's words before editing migration targets.
+For a multi-repo migration, record either one confirmed shared posture or a
+posture for each repository that differs. A separate Codex workspace does not
+make every source or child repository `codex-native`; apply posture to the
+actual migration target.
+
+## Mutation Authorization Gate
+
+Record these authorization states in the pre-edit plan and audit:
+
+| Action | `allowed` requires | Default when unspecified |
+| --- | --- | --- |
+| `file-edit` | A direct implementation request or approval of the shown migration plan, limited to named target paths | `not-authorized` |
+| `local-commit` | Explicit user or applicable repository-workflow authorization | `not-authorized` |
+| `remote-write` | Explicit authorization for the remote action class, such as push, PR, issue, deployment, or outbound message | `not-authorized` |
+
+Do not treat authorization for one row as authorization for another. Record
+new authorization before changing a row from `not-authorized` to `allowed`.
+Actual commands and external actions must stay within the recorded states.
+
 ## Guided-Auto Decision Tree
 
 1. Run inventory with `--guided-auto-plan`.
@@ -126,11 +146,13 @@ or outside the intended migration scope.
    destination-based or multi-repo migrations:
    `--emit-manifest --include-global-claude-runtime --include-mcp-audit`.
 3. Show inferred operation mode, target posture, trust mode, parent policy,
-   child selection, destination path relation, blocked auto actions, and
-   manifest decision counts.
+   child selection, mutation authorization states, destination path relation,
+   blocked auto actions, and manifest decision counts.
 4. Accept safe defaults only after showing them to the user.
 5. Ask for confirmations flagged by the plan:
    - target posture
+   - file-edit, local-commit, and remote-write authorization when not already
+     explicit in the request or applicable repository workflow
    - `AGENTS.md` trust mode when source `AGENTS.md` exists
    - child repo plan
    - private/local context disposition

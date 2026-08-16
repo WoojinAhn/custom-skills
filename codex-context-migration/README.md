@@ -1,15 +1,28 @@
 # codex-context-migration
 
-`codex-context-migration` is an audit-first skill for moving Claude-era
-workspace and repository context into Codex `AGENTS.md` files. It is not a
-`CLAUDE.md` rename tool: it separates durable project instructions from
-private memory, runtime config, MCP setup, hooks, plugins, stale content, and
-generated instruction files before anything becomes always-loaded Codex context.
+`codex-context-migration` is an advanced audit companion for Claude-to-Codex
+workspace migrations that exceed OpenAI's curated `migrate-to-codex` skill. It
+adds multi-repository manifests, workspace-copy policy, dual-run posture,
+private-context separation, parent-policy layering, and authorization evidence.
+It does not replace the official converter.
 
-## Install
+## Official Skill First
 
-This is a Codex skill, not a required plugin package. Install the whole
-`codex-context-migration/` directory into the Codex skills directory:
+Install and use OpenAI's curated `migrate-to-codex` skill for routine supported
+instruction, skill, hook, MCP, config, and subagent conversion:
+
+```text
+$skill-installer migrate-to-codex
+```
+
+Use this repository only when the migration also needs the advanced audit
+surfaces listed above. Do not activate this personal skill globally for routine
+migrations.
+
+## Optional Advanced-Audit Installation
+
+For explicit advanced-audit work, install the whole
+`codex-context-migration/` directory into a Codex skill discovery location:
 
 ```bash
 mkdir -p "${CODEX_HOME:-$HOME/.codex}/skills"
@@ -24,7 +37,7 @@ ln -s <repo-path>/codex-context-migration \
 > for authoring/local discovery, so prefer your local Codex installation's
 > skill-installer path if the paths differ.
 
-Restart Codex after installation.
+Restart Codex after installation if automatic discovery does not refresh.
 
 If you already have this repository on GitHub, you can also ask Codex to use
 its `skill-installer` skill to install:
@@ -85,7 +98,7 @@ python3 codex-context-migration/scripts/inventory.py \
   --format markdown
 ```
 
-Before editing files, record four operation-mode choice points:
+Before editing files, record five migration control points:
 
 1. Operation mode: `setup-in-place`, `migrate-full-workspace`,
    `context-only`, or `guided-auto`.
@@ -94,6 +107,8 @@ Before editing files, record four operation-mode choice points:
    `inherit-parent`.
 4. Child repo handling: native `AGENTS.md`, bridge, dual-run bridge,
    copy-only, defer, or exclude.
+5. Mutation authorization: record file edits, local commits, and remote writes
+   separately; do not infer one permission from another.
 
 `guided-auto` drafts conservative defaults from inventory signals. It is a
 planning aid, not silent approval; private/local memory, hooks, permissions,
@@ -159,6 +174,8 @@ realistic before/after migration showing:
 
 ## Common Mistakes
 
+- Activating this personal skill before checking whether the official
+  `migrate-to-codex` skill fully covers the request.
 - Renaming `CLAUDE.md` to `AGENTS.md` without classifying contents first.
 - Copying `.claude/settings.json` or `.mcp.json` wholesale into `AGENTS.md`.
 - Treating an existing `AGENTS.md` as authoritative without trust-mode

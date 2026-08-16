@@ -47,7 +47,17 @@ Destination: `<destination path>`
 - Source `AGENTS.md` trust mode: `trusted` / `generated-review` / `unknown`
 - Parent policy mode for child Git repositories: `isolated` / `inherit-parent`
 - Target posture: `codex-native` / `dual-run-current-workspace`
+- Target posture confirmation source:
+- Per-repository target posture exceptions:
 - `CLAUDE.md` disposition: absorbed / retained-source / retained-active / omitted
+- Mutation authorization:
+  - `file-edit`: allowed / not-authorized
+  - File-edit target paths:
+  - `local-commit`: allowed / not-authorized
+  - `remote-write`: allowed / not-authorized
+  - Remote action classes:
+- Authorization source or approval evidence:
+- Actual file edits / local commits / remote writes:
 - Parent policy reference coverage:
 - Child repo migration selection mode: `all` / `selected` / `defer-children`
 - Child repo selection coverage:
@@ -206,6 +216,8 @@ availability and behavior before choosing a replacement.
 - Actual instruction rewrite coverage:
 - Target authority statement coverage:
 - Target posture coverage:
+- Per-repository posture coverage:
+- Mutation authorization-to-action consistency:
 - Dual-run bridge coverage:
 - Parent policy reference coverage:
 - Claude rules/local/import disposition:

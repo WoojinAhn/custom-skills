@@ -1,7 +1,7 @@
 interface:
   display_name: "Codex Context Migration"
-  short_description: "Migrate agent context into Codex safely."
-  default_prompt: "Use $codex-context-migration to migrate this workspace or repository from CLAUDE.md/.claude context to Codex AGENTS.md with an audit-first workflow."
+  short_description: "Audit complex migrations beyond the official converter."
+  default_prompt: "Use $codex-context-migration only for advanced multi-repo, workspace-copy, private-context, layering, posture, or authorization audit needs beyond $migrate-to-codex."
 
 policy:
   allow_implicit_invocation: true
