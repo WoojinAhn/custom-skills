@@ -35,12 +35,12 @@ only on the approved subset.
 effectiveness gate, dup-check trackers, open docs to verify staleness. Then present
 one numbered candidate list: per item, the lane, the destination (issue/doc/memory/
 deletion target), and a one-line rationale — plus the 의도적 스킵 list. Inspection is
-fine in this phase; creating issues, editing docs/CLAUDE.md, saving memories, and
-deleting files are not.
+fine in this phase; creating issues, editing instruction or project docs, saving
+memories, and deleting files are not.
 
-**Approval.** Ask which items to run (AskUserQuestion with multiSelect when
-available, otherwise a numbered list and wait). The user may approve all, a subset,
-or none — "none" is a valid harvest outcome.
+**Approval.** Ask which items to run using the environment's structured user-input
+tool with multi-select when available; otherwise present a numbered list and wait.
+The user may approve all, a subset, or none — "none" is a valid harvest outcome.
 
 **Phase 2 — Execute.** Apply exactly the approved items, then report per the Output
 Shape below. Unapproved items are dropped, not queued.
@@ -53,15 +53,19 @@ test ("would a wrong decision happen without it?").
 | Lane | Candidate | Destination |
 |---|---|---|
 | ① Tooling (CLI/MCP/skill) | Friction hit **repeatedly this session** or corroborated by others | Issue tracker (GitHub Issues, Jira, …) — **dup-check first**; duplicate → bump/comment, not new |
-| ② Project context | Knowledge not derivable from code; broken/missing CLAUDE.md sections | CLAUDE.md / docs/*.md in the repo |
-| ③ Memory | User corrections (esp. repeated), workflow conventions verified this session | memory file + MEMORY.md index line |
+| ② Project context | Knowledge not derivable from code; broken/missing active instruction or project-doc sections | Active instruction file (`AGENTS.md`, `CLAUDE.md`, or repo-defined equivalent) / `docs/*.md` |
+| ③ Memory | User corrections (esp. repeated), workflow conventions verified this session | The active environment's supported durable-memory surface; unsupported → report and skip |
 | ④ Hygiene (report, don't silently fix) | Credentials/tokens in artifacts, broken leftover files, stashes, temp dirs | Tell the user; delete only your own scratch |
+
+Follow the repository's declared instruction authority. Do not create a provider-specific
+instruction or memory file merely because another agent uses that convention.
 
 ## Staleness Sweep (most-missed step)
 
 **Your own changes rot nearby docs the same day.** For each thing you changed this
-session, ask: which existing doc/memory/CLAUDE.md *describes* that behavior? Open
-those specific files and fix contradictions NOW.
+session, ask: which existing doc, memory, or active instruction file *describes*
+that behavior? Inspect the relevant supported surfaces and fix contradictions NOW;
+if a memory surface is unavailable, report and skip it.
 
 - This is NOT scope creep — it is closing damage your session created.
 - Scope creep would be reading/summarizing docs *unrelated* to your changes. Don't.
