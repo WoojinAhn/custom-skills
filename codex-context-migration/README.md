@@ -6,6 +6,18 @@ adds multi-repository manifests, workspace-copy policy, dual-run posture,
 private-context separation, parent-policy layering, and authorization evidence.
 It does not replace the official converter.
 
+## Runtime Support
+
+| Runtime | Support level | Intended behavior |
+|---|---|---|
+| Codex | Recommended; full workflow | Invoke `migrate-to-codex`, apply this skill's advanced audit gates, and validate the resulting Codex instruction chain natively. |
+| Claude Code | Compatibility mode | Run read-only inventory or prepare an audit plan, then hand supported conversion and final validation to Codex. |
+
+Do not use Claude Code as the migration executor from inside a source workspace
+whose `CLAUDE.md` is already active. In that environment, source instructions
+may already influence the session before this skill classifies them as audit
+data.
+
 ## Official Skill First
 
 Install and use OpenAI's curated `migrate-to-codex` skill for routine supported
@@ -63,10 +75,10 @@ blind conversion could lose important intent:
 - Existing `AGENTS.md` files may be generated, mechanically converted, stale,
   or mixed with source material that needs trust-mode verification.
 
-Skip the full workflow for a small single repository with one short
-`CLAUDE.md`; use only inventory, classification, native rewrite, and validation.
-Also skip it when the user explicitly wants to keep a Claude-native config repo
-as-is rather than migrate its contents.
+Use OpenAI's curated `migrate-to-codex` skill for a small single repository or
+another routine supported conversion. Also skip this skill when the user
+explicitly wants to keep a Claude-native config repo as-is rather than migrate
+its contents.
 
 ## Quick Start
 

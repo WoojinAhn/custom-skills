@@ -12,8 +12,16 @@ This repository is published as skill source material. It is not packaged as a
 Codex plugin yet; plugin packaging is optional and may be added later for a
 marketplace-style install experience.
 
-Install a skill by symlinking the skill directory into
-`${CODEX_HOME:-$HOME/.codex}/skills/`:
+For routine Claude-to-Codex conversion, install and use OpenAI's curated skill:
+
+```text
+$skill-installer migrate-to-codex
+```
+
+Install this repository's `codex-context-migration` skill only for advanced
+multi-repository, workspace-copy, private-context, layering, posture, or
+authorization audits that exceed the official converter. For that explicit
+scope, symlink the skill directory into `${CODEX_HOME:-$HOME/.codex}/skills/`:
 
 ```bash
 mkdir -p "${CODEX_HOME:-$HOME/.codex}/skills"
@@ -28,7 +36,8 @@ ln -s <repo-path>/codex-context-migration \
 > for authoring/local discovery, so prefer your local Codex installation's
 > skill-installer path if the paths differ.
 
-Restart Codex after installation so it can discover the new skill.
+Codex detects skill changes automatically. Restart it only if the skill does
+not appear.
 
 You can also ask Codex to install from this GitHub repository using its
 `skill-installer` skill and this path:
@@ -49,7 +58,14 @@ copying or editing files.
 
 ## Install For Claude Code
 
-Claude Code can use the same skill source format. Symlink the skill into
+Claude Code can parse the same Agent Skills source format, but
+`codex-context-migration` runs there only in compatibility mode. It may use the
+inventory script and audit guidance, but supported conversion and final
+instruction-load validation must be handed to Codex. Do not run it as the
+migration executor from inside a source workspace whose `CLAUDE.md` is already
+active.
+
+For source-format inspection or compatibility testing, symlink the skill into
 `~/.claude/skills/`:
 
 ```bash
@@ -61,9 +77,15 @@ ln -s <repo-path>/<skill-name> ~/.claude/skills/<skill-name>
 > invisible until someone diffs the two. Both drifts found so far — a skill revised
 > in place for ten days, and one that was never committed anywhere — were copy-installs.
 
-For `codex-context-migration`, Codex is still the preferred executor because
-the skill validates Codex instruction loading and writes Codex-native
-`AGENTS.md` files.
+Do not activate this personal skill globally in Claude Code for routine
+migrations.
+
+## Runtime Support
+
+| Runtime | Support level | Intended behavior |
+|---|---|---|
+| Codex | Recommended; full workflow | Invoke the official converter, apply advanced audit gates when needed, and validate the resulting `AGENTS.md` instruction chain natively. |
+| Claude Code | Compatibility mode | Run read-only inventory or prepare an audit plan, then hand supported conversion and final validation to Codex. |
 
 ## Main Skill
 

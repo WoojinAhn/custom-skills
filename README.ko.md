@@ -12,8 +12,17 @@
 않고, plugin packaging은 marketplace 스타일 설치 경험이 필요해질 때 나중에
 추가할 수 있습니다.
 
-스킬을 설치하려면 skill 디렉터리를 `${CODEX_HOME:-$HOME/.codex}/skills/`에
-symlink합니다:
+일반적인 Claude-to-Codex 변환에는 OpenAI curated skill을 먼저 설치해서
+사용합니다:
+
+```text
+$skill-installer migrate-to-codex
+```
+
+이 저장소의 `codex-context-migration`은 공식 변환기의 범위를 넘어서는 다중
+저장소, workspace copy, private context, instruction layering, target posture,
+권한 감사에만 설치합니다. 이 고급 범위가 명시적으로 필요한 경우 skill
+디렉터리를 `${CODEX_HOME:-$HOME/.codex}/skills/`에 symlink합니다:
 
 ```bash
 mkdir -p "${CODEX_HOME:-$HOME/.codex}/skills"
@@ -28,7 +37,8 @@ ln -s <repo-path>/codex-context-migration \
 > `.agents/skills`도 설명하므로, 경로가 다르면 로컬 Codex 설치본의
 > skill-installer 경로를 우선하세요.
 
-설치 후 Codex를 재시작해야 새 skill을 인식합니다.
+Codex는 skill 변경을 자동으로 감지합니다. 목록에 나타나지 않을 때만
+재시작합니다.
 
 Codex의 `skill-installer` skill을 사용해 GitHub 저장소 경로로 설치할 수도
 있습니다:
@@ -49,7 +59,14 @@ copying or editing files.
 
 ## Claude Code 설치
 
-Claude Code도 같은 skill source 형식을 사용할 수 있습니다.
+Claude Code도 같은 Agent Skills source 형식을 읽을 수 있지만,
+`codex-context-migration`은 Claude Code에서 compatibility mode로만 동작합니다.
+Inventory script와 audit guidance는 사용할 수 있지만, 지원되는 변환과 최종
+instruction-load 검증은 Codex에 넘겨야 합니다. 출발지 workspace의
+`CLAUDE.md`가 이미 활성 지침으로 로드된 상태에서 Claude Code를 migration
+executor로 사용하지 않습니다.
+
+Source format 확인이나 compatibility test가 필요한 경우
 `~/.claude/skills/`에 symlink합니다:
 
 ```bash
@@ -61,8 +78,15 @@ ln -s <repo-path>/<skill-name> ~/.claude/skills/<skill-name>
 > 드러나지 않습니다. 지금까지 발견된 드리프트 2건(열흘간 설치본에서만 개선된 스킬,
 > 그리고 아예 어느 레포에도 커밋되지 않았던 스킬) 모두 복사 설치였습니다.
 
-`codex-context-migration`은 Codex instruction loading 검증과 Codex-native
-`AGENTS.md` 작성을 수행하므로, 실행자는 Codex가 더 적합합니다.
+일반적인 migration을 위해 이 개인 skill을 Claude Code에 전역 활성화하지
+않습니다.
+
+## 실행 환경 지원
+
+| 실행 환경 | 지원 수준 | 의도한 동작 |
+|---|---|---|
+| Codex | 권장, 전체 workflow 지원 | 공식 변환기를 호출하고, 필요한 경우 고급 audit gate를 적용한 뒤 생성된 `AGENTS.md` instruction chain을 같은 환경에서 검증합니다. |
+| Claude Code | Compatibility mode | Read-only inventory 또는 audit plan까지만 수행하고, 지원되는 변환과 최종 검증은 Codex에 넘깁니다. |
 
 ## 대표 스킬
 
