@@ -62,6 +62,76 @@ Plugin packaging is not required for direct skill use. A `.codex-plugin`
 wrapper and marketplace entry can be added later if this skill needs
 marketplace-style discovery or installation.
 
+## Distribution And Updates
+
+[GitHub](https://github.com/WoojinAhn/custom-skills) is the canonical source for
+this skill. The instructions below apply only to the optional advanced-audit
+installation; use OpenAI's `migrate-to-codex` for routine supported conversions.
+Any future OpenAI curated catalog submission is a separate discovery and review
+channel, with no guarantee of acceptance or automatic updates.
+
+| Install mode | Use case | Update behavior |
+|---|---|---|
+| Git clone + symlink | Recommended for tracking this source repository | Update the checkout; the symlink continues to use that directory. |
+| Copy the whole skill directory | Simple offline or one-time snapshot | Replace the installed directory manually from the selected version; pulling the source repo does not update the copy. |
+| `skill-installer` with the GitHub path above | Codex-assisted snapshot installation | The current installer copies files and rejects an existing destination. Review local edits and replace/reinstall deliberately; it does not provide automatic updates. |
+
+For a new clone, run this from the directory where you keep source repositories,
+then use the symlink command in [Optional Advanced-Audit Installation](#optional-advanced-audit-installation)
+with the clone's absolute path as `<repo-path>`:
+
+```bash
+git clone https://github.com/WoojinAhn/custom-skills.git
+cd custom-skills
+```
+
+Keep one active installation of this skill. If switching from a copied install
+to a symlink, preserve any local edits and move the old installation out of the
+skill discovery directory before creating the link.
+
+### Follow The Default Branch
+
+From the clone, with local edits committed or saved separately:
+
+```bash
+git switch master
+git pull --ff-only
+```
+
+`master` is this repository's default branch. `--ff-only` stops if local history
+has diverged so you can resolve it explicitly. The same commands return a pinned
+checkout to branch tracking.
+
+### Pin A Snapshot
+
+From the clone, fetch and list available tags:
+
+```bash
+git fetch origin --tags
+git tag --list
+```
+
+Choose an existing release tag, or a reviewed full commit SHA if no release tag
+is available. Replace `<tag-or-commit>` with that value:
+
+```bash
+git switch --detach <tag-or-commit>
+```
+
+A detached checkout stays at that snapshot until you select another revision;
+do not run the branch-update commands while you intend to stay pinned. The
+symlink needs no change. All skills linked to this clone follow the same
+checkout, so use a separate clone if they need independent versions. Copied
+installs must be replaced from the selected snapshot instead.
+
+Codex detects skill changes automatically; restart it if discovery does not
+refresh. See OpenAI's [local skill discovery guidance](https://learn.chatgpt.com/docs/build-skills#where-codex-loads-local-skills).
+
+Release notes can link directly to [this section](#distribution-and-updates).
+The final public smoke QA in [#40](https://github.com/WoojinAhn/custom-skills/issues/40)
+should repeat the clone/symlink, branch update, snapshot pin, and return-to-branch
+checks from a clean checkout.
+
 ## When To Use
 
 Use this skill when a migration has more than one source of context or when a

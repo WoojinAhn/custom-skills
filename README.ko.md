@@ -47,6 +47,10 @@ Codex의 `skill-installer` skill을 사용해 GitHub 저장소 경로로 설치�
 WoojinAhn/custom-skills/codex-context-migration
 ```
 
+update와 version pinning 안내는
+[`codex-context-migration` distribution and updates](codex-context-migration/README.md#distribution-and-updates)를
+참고하세요.
+
 마이그레이션은 기존 agent가 아니라 Codex session에서 실행하는 것이 의도입니다.
 예시 프롬프트:
 

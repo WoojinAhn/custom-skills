@@ -46,6 +46,9 @@ You can also ask Codex to install from this GitHub repository using its
 WoojinAhn/custom-skills/codex-context-migration
 ```
 
+For update and version-pinning guidance, see
+[`codex-context-migration` distribution and updates](codex-context-migration/README.md#distribution-and-updates).
+
 Run the migration from a Codex session, not from the legacy agent whose context
 is being migrated. Example prompt:
 
