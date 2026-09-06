@@ -38,7 +38,7 @@ inventory and audit planning in
 | [`triangulated-review`](triangulated-review/SKILL.md) | Three-reviewer parallel code audit with fact-checking for single-reviewer findings. Cost-pruned form of a larger multi-reviewer experiment. |
 | [`zoom-caption-capture`](zoom-caption-capture/SKILL.md) | Stream Zoom Web Client live captions via a `MutationObserver` inside `iframe#webclient`, with token-level overlap merging and Blob-download dump. Lossless raw buffer + deferred cleanup so an LLM pass can produce final minutes. |
 | [`session-harvest`](session-harvest/SKILL.md) | End-of-session sweep that extracts durable value (tooling issues, docs, memory, hygiene flags) through a strict effectiveness gate. Proposes read-only first and executes only the approved subset. Zero findings is a valid result; skips are reported, not silent. |
-| [`trend-briefing-doc`](trend-briefing-doc/SKILL.md) | Turn a single link or topic phrase into a researched Korean HTML trend briefing structured as "position A vs position B", from a bundled card-style template. Understated report tone — no courtroom/war metaphors. |
+| [`trend-briefing-doc`](trend-briefing-doc/SKILL.md) | Turn a single link or topic phrase into a researched Korean HTML trend briefing structured around facts, implications, and uncertainties, or supported positions A/B, from a bundled card-style template. Understated report tone — no courtroom/war metaphors. |
 | [`ai-status`](ai-status/SKILL.md) | Batch-check AI/dev service status (Claude, OpenAI, Cursor, GitHub, Gemini + 10 extended) from machine-readable status APIs, distinguishing operational outages from policy/model-recall/FedRAMP scope incidents. |
 
 ### `triangulated-review`
@@ -97,14 +97,17 @@ reasons).
 
 Use when a single community link (Reddit/HN/X) or a bare topic phrase should
 become a researched, balanced trend briefing. The skill gathers 5–6 sources
-across both sides of the discourse, classifies them into "position A vs
-position B", and renders a Korean HTML report from the bundled
+and chooses a structure that fits the evidence: facts, implications, and
+uncertainties for factual or consensual topics; positions A/B for supported
+differences. It renders a Korean HTML report from the bundled
 `template.html` (Pretendard + JetBrains Mono, card layout, mobile-responsive).
 
 House style is deliberately understated: quoted comments are translated with
 links to the originals, and the closing section states observations and
 limitations instead of declaring a winner. The default deliverable is a
-self-contained HTML file; publishing integrations are optional.
+self-contained HTML file; publishing integrations are optional. Static checks
+require the selected sections and a source link; claim-to-source verification
+is a separate review, not a guarantee from the HTML validator.
 
 ### `ai-status`
 

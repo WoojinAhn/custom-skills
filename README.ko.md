@@ -39,7 +39,7 @@ workspace copy, private context, instruction layering, target posture, 권한 �
 | [`triangulated-review`](triangulated-review/SKILL.md) | 3 reviewer 패러럴 코드 감사 + 단일 reviewer 발견에 대한 fact-check. 더 큰 multi-reviewer 실험을 cost-pruned한 형태. |
 | [`zoom-caption-capture`](zoom-caption-capture/SKILL.md) | Zoom 웹 클라이언트의 `iframe#webclient` 내부에 `MutationObserver`를 붙여 실시간 자막을 스트리밍 캡처. 토큰 단위 overlap merge + Blob 다운로드로 dump. raw buffer는 무손실 보존, cleanup은 LLM pass에서 처리. |
 | [`session-harvest`](session-harvest/SKILL.md) | 세션 종료 전 durable value(툴링 이슈, 문서, 메모리, hygiene)를 실효성 게이트로 걸러 추출하는 마무리 스윕. 먼저 읽기 전용으로 후보를 제시하고 승인된 항목만 실행. 0건도 유효한 결과이며, 스킵은 침묵이 아니라 사유와 함께 보고. |
-| [`trend-briefing-doc`](trend-briefing-doc/SKILL.md) | 링크 하나 또는 주제 한 줄만으로 리서치를 수행해 "입장 A vs 입장 B" 구조의 한국어 HTML 트렌드 브리핑을 생성. 카드형 담백한 리포트 톤, 법정/전쟁 메타포 금지. 템플릿 동봉. |
+| [`trend-briefing-doc`](trend-briefing-doc/SKILL.md) | 링크 하나 또는 주제 한 줄만으로 리서치를 수행해 근거에 따라 사실·영향·불확실성 또는 입장 A/B 구조의 한국어 HTML 트렌드 브리핑을 생성. 카드형 담백한 리포트 톤, 법정/전쟁 메타포 금지. 템플릿 동봉. |
 | [`ai-status`](ai-status/SKILL.md) | AI/개발 서비스 상태(Claude, OpenAI, Cursor, GitHub, Gemini + 확장 10개)를 machine-readable status API로 일괄 확인. 운영 장애와 정책/모델 recall/FedRAMP scope incident를 구분해 보고. |
 
 ### `triangulated-review`
@@ -94,13 +94,16 @@ rule("최대한 다 뽑아줘"는 모든 lane을 스윕하라는 뜻이지 기�
 ### `trend-briefing-doc`
 
 커뮤니티 링크(Reddit/HN/X) 하나나 주제 한 줄을 균형 잡힌 트렌드 브리핑으로
-만들고 싶을 때 사용합니다. 담론 양쪽에서 5–6개 출처를 수집해 "입장 A vs
-입장 B"로 분류하고, 동봉된 `template.html`(Pretendard + JetBrains Mono, 카드
-레이아웃, 반응형)로 한국어 HTML 리포트를 렌더링합니다.
+만들고 싶을 때 사용합니다. 5–6개 출처 수집을 목표로 조사하고, 사실 전달이나
+합의된 주제는 사실·영향·불확실성으로, 근거가 있는 서로 다른 입장은 A/B로
+구성합니다. 동봉된 `template.html`(Pretendard + JetBrains Mono, 카드 레이아웃,
+반응형)로 한국어 HTML 리포트를 렌더링합니다.
 
 스타일은 의도적으로 담백합니다: 인용 댓글은 원문 링크와 함께 번역하고, 마지막
 섹션은 승패 선언 대신 관찰과 한계를 서술합니다. 기본 산출물은 self-contained
-HTML 파일이며, 발행 연동은 선택입니다.
+HTML 파일이며, 발행 연동은 선택입니다. 정적 검증은 선택한 구조와 출처 링크의
+존재를 확인합니다. 출처가 주장을 뒷받침하는지는 별도로 검토하며, HTML 검증
+통과가 사실관계의 정확성을 보장하지는 않습니다.
 
 ### `ai-status`
 

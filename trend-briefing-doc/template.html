@@ -108,6 +108,7 @@
   .sec-note { color: var(--sub); font-size: 0.94rem; max-width: 62ch; margin: 0 0 1.3rem; }
 
   .positions { display: grid; grid-template-columns: 1fr 1fr; gap: 0.9rem; }
+  body[data-briefing-mode="evidence"] .positions { grid-template-columns: 1fr; }
   @media (max-width: 620px) { .positions { grid-template-columns: 1fr; } }
   .pos {
     background: var(--surface);
@@ -280,7 +281,7 @@
   footer { margin-top: 2rem; font-size: 0.76rem; color: var(--sub); text-align: center; }
 </style>
 </head>
-<body>
+<body data-briefing-mode="evidence">
   <div class="wrap">
     <!-- 상단 메타바: 기간 / 출처 / 출발점 -->
     <div class="metabar">
@@ -293,31 +294,30 @@
     <div class="hero">
       <p class="eyebrow">TREND BRIEFING</p>
       <h1>{{TITLE}}</h1>
-      <p>
-        {{LEDE}} <span class="badge a">{{관점 A 한 줄}}</span> 쪽과
-        <span class="badge b">{{관점 B 한 줄}}</span> 쪽이 갈립니다.
-      </p>
+      <p>{{LEDE}}</p>
     </div>
 
-    <!-- 섹션 01: 관점 비교 카드 (필수) -->
+    <!-- Default evidence structure; use separate .pos.a/.pos.b cards for comparison mode. -->
     <section>
       <p class="sec-num">01</p>
-      <h2>두 관점의 요지</h2>
+      <h2>확인된 사실과 영향, 남은 불확실성</h2>
       <div class="positions">
-        <div class="pos a">
-          <span class="tag">관점 A · {{출처}}</span>
-          <h3>{{관점 A 제목}}</h3>
+        <div class="pos facts">
+          <h3>확인된 사실</h3>
           <ul>
-            <li>{{근거 1}}</li>
-            <li>{{근거 2}}</li>
+            <li>{{출처로 확인한 사실}}</li>
           </ul>
         </div>
-        <div class="pos b">
-          <span class="tag">관점 B · {{출처}}</span>
-          <h3>{{관점 B 제목}}</h3>
+        <div class="pos implications">
+          <h3>영향과 해석</h3>
           <ul>
-            <li>{{근거 1}}</li>
-            <li>{{근거 2}}</li>
+            <li>{{확인된 영향 또는 추론임을 명시한 해석}}</li>
+          </ul>
+        </div>
+        <div class="pos uncertainties">
+          <h3>남은 불확실성</h3>
+          <ul>
+            <li>{{미확인 사항과 조사 한계}}</li>
           </ul>
         </div>
       </div>
@@ -379,7 +379,7 @@
       </div>
     </section>
 
-    <!-- 섹션 06: 출처별 포지션 테이블 -->
+    <!-- Optional section 06: comparison mode only, with evidence-backed positions. Remove in evidence mode. -->
     <section>
       <p class="sec-num">06</p>
       <h2>출처별 포지션</h2>

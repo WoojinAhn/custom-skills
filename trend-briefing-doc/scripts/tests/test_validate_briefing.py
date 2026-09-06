@@ -23,6 +23,20 @@ VALID_HTML = """<!DOCTYPE html>
 </html>
 """
 
+EVIDENCE_HTML = """<!DOCTYPE html>
+<html lang="ko">
+<head><meta charset="utf-8" /><title>근거 브리핑</title></head>
+<body data-briefing-mode="evidence">
+  <h1>근거 브리핑</h1>
+  <div class="pos facts"><p>확인한 사실</p></div>
+  <div class="pos implications"><p>실무적 의미</p></div>
+  <div class="pos uncertainties"><p>아직 모르는 점</p></div>
+  <a href="https://example.com/source">출처</a>
+  <div class="summary"><p>한 줄 정리</p></div>
+</body>
+</html>
+"""
+
 
 class ValidateBriefingTest(unittest.TestCase):
     def validate_html(self, html: str) -> list[str]:
@@ -40,6 +54,69 @@ class ValidateBriefingTest(unittest.TestCase):
 
     def test_accepts_valid_static_report(self) -> None:
         self.assertEqual(self.validate_html(VALID_HTML), [])
+
+    def test_accepts_explicit_comparison_mode(self) -> None:
+        html = VALID_HTML.replace("<body>", '<body data-briefing-mode="comparison">')
+        self.assertEqual(self.validate_html(html), [])
+
+    def test_accepts_evidence_mode_without_comparison_cards(self) -> None:
+        self.assertEqual(self.validate_html(EVIDENCE_HTML), [])
+
+    def test_rejects_missing_or_empty_evidence_sections(self) -> None:
+        for kind, text in (
+            ("facts", "확인한 사실"),
+            ("implications", "실무적 의미"),
+            ("uncertainties", "아직 모르는 점"),
+        ):
+            card = f'<div class="pos {kind}"><p>{text}</p></div>'
+            for replacement in ("", f'<div class="pos {kind}"><p> </p></div>'):
+                with self.subTest(kind=kind, replacement=replacement):
+                    self.assertTrue(self.validate_html(EVIDENCE_HTML.replace(card, replacement)))
+
+    def test_rejects_unknown_or_empty_explicit_mode(self) -> None:
+        for mode in ("timeline", "", "Evidence"):
+            with self.subTest(mode=mode):
+                html = VALID_HTML.replace("<body>", f'<body data-briefing-mode="{mode}">')
+                self.assertTrue(self.validate_html(html))
+
+    def test_rejects_mixed_or_inactive_card_kinds(self) -> None:
+        for original, replacement, report in (
+            ('class="pos facts"', 'class="pos facts implications"', EVIDENCE_HTML),
+            ('class="pos facts"', 'class="pos facts a"', EVIDENCE_HTML),
+            ('class="pos facts"', 'class="pos a"', EVIDENCE_HTML),
+            ('class="pos a"', 'class="pos a facts"', VALID_HTML),
+        ):
+            with self.subTest(replacement=replacement):
+                self.assertTrue(self.validate_html(report.replace(original, replacement)))
+
+    def test_requires_source_anchor_not_just_font_links(self) -> None:
+        source = '<a href="https://example.com/source">출처</a>'
+        for replacement in (
+            "",
+            '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono" />',
+            '<link rel="preconnect" href="https://fonts.gstatic.com" />',
+        ):
+            for report in (VALID_HTML, EVIDENCE_HTML):
+                with self.subTest(replacement=replacement, evidence=report == EVIDENCE_HTML):
+                    self.assertTrue(self.validate_html(report.replace(source, replacement)))
+
+    def test_rejects_invalid_source_anchors(self) -> None:
+        for href in (
+            "",
+            "#source",
+            "/source",
+            "https:///source",
+            "https://:443/source",
+            "mailto:author@example.com",
+            "javascript:alert(1)",
+        ):
+            with self.subTest(href=href):
+                html = VALID_HTML.replace('href="https://example.com/source"', f'href="{href}"')
+                self.assertTrue(self.validate_html(html))
+
+    def test_accepts_http_source_anchor(self) -> None:
+        html = EVIDENCE_HTML.replace("https://example.com/source", "http://example.com/source")
+        self.assertEqual(self.validate_html(html), [])
 
     def test_allows_local_svg_fragment_in_css(self) -> None:
         html = VALID_HTML.replace(

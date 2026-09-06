@@ -50,6 +50,11 @@ ALLOWED_LINK_HOSTS = {
 }
 RESOURCE_ATTRIBUTES = {"action", "formaction", "poster", "src", "srcset"}
 CSS_URL_RE = re.compile(r"url\s*\(([^)]*)\)", re.IGNORECASE)
+MODE_CARD_KINDS = {
+    "comparison": ("a", "b"),
+    "evidence": ("facts", "implications", "uncertainties"),
+}
+CARD_KINDS = {kind for kinds in MODE_CARD_KINDS.values() for kind in kinds}
 
 
 @dataclass
@@ -74,6 +79,7 @@ class BriefingParser(HTMLParser):
     def __init__(self) -> None:
         super().__init__(convert_charrefs=True)
         self.lang = ""
+        self.mode = "comparison"
         self.links: list[str | None] = []
         self.blocked_tags: set[str] = set()
         self.event_handlers: set[str] = set()
@@ -82,7 +88,7 @@ class BriefingParser(HTMLParser):
         self.style_parts: list[str] = []
         self.tag_stack: list[str] = []
         self.active_regions: list[CaptureRegion] = []
-        self.position_texts: dict[str, list[str]] = {"a": [], "b": []}
+        self.position_texts: dict[str, list[str]] = {kind: [] for kind in CARD_KINDS}
         self.summary_texts: list[str] = []
         self._capture_tag: str | None = None
         self._capture_parts: list[str] = []
@@ -113,6 +119,8 @@ class BriefingParser(HTMLParser):
             self.attribute_errors.append("meta[http-equiv]")
         if tag == "html":
             self.lang = attr_map.get("lang") or ""
+        elif tag == "body":
+            self.mode = attr_map.get("data-briefing-mode", "comparison") or ""
         elif tag == "a":
             self.links.append(attr_map.get("href"))
         elif tag == "link":
@@ -123,10 +131,15 @@ class BriefingParser(HTMLParser):
 
         classes = set((attr_map.get("class") or "").split())
         if tag == "div" and "pos" in classes:
-            kinds = classes & {"a", "b"}
-            if len(kinds) != 1:
+            kinds = classes & CARD_KINDS
+            allowed = MODE_CARD_KINDS.get(self.mode, ())
+            if len(kinds) != 1 or not kinds.issubset(allowed):
+                expected = (
+                    "A or B" if self.mode == "comparison"
+                    else ", ".join(allowed)
+                )
                 self.structure_errors.append(
-                    "each position card must identify exactly one of A or B"
+                    f"each position card must identify exactly one of {expected}"
                 )
             else:
                 self.active_regions.append(
@@ -236,9 +249,12 @@ def validate(path: Path) -> list[str]:
         errors.append("missing non-empty <title>")
     if not any(parser.text_by_tag["h1"]):
         errors.append("missing non-empty <h1>")
-    for kind in ("a", "b"):
+    if parser.mode not in MODE_CARD_KINDS:
+        errors.append("expected data-briefing-mode to be evidence or comparison")
+    for kind in MODE_CARD_KINDS.get(parser.mode, ()):
         if not any(parser.position_texts[kind]):
-            errors.append(f"missing non-empty position {kind.upper()} card")
+            label = f"position {kind.upper()}" if parser.mode == "comparison" else kind
+            errors.append(f"missing non-empty {label} card")
     if not any(parser.summary_texts):
         errors.append("missing non-empty final summary block")
     if parser.blocked_tags:
@@ -256,16 +272,26 @@ def validate(path: Path) -> list[str]:
     if has_unsafe_css("".join(parser.style_parts)):
         errors.append("embedded CSS may not import or request external resources")
 
+    source_links = 0
     for index, href in enumerate(parser.links, start=1):
         if not href or not href.strip():
             errors.append(f"link {index} has an empty href")
             continue
-        parsed = urlparse(href.strip())
+        try:
+            parsed = urlparse(href.strip())
+        except ValueError:
+            errors.append(f"link {index} must use an absolute HTTP(S) URL")
+            continue
         scheme = parsed.scheme.lower()
         if scheme in UNSAFE_SCHEMES:
             errors.append(f"link {index} uses unsafe scheme: {parsed.scheme}")
-        elif scheme not in {"http", "https"} or not parsed.netloc:
+        elif scheme not in {"http", "https"} or not parsed.hostname:
             errors.append(f"link {index} must use an absolute HTTP(S) URL")
+        else:
+            source_links += 1
+
+    if not source_links:
+        errors.append("missing absolute HTTP(S) source link")
 
     return errors
 
