@@ -6,6 +6,25 @@ adds multi-repository manifests, workspace-copy policy, dual-run posture,
 private-context separation, parent-policy layering, and authorization evidence.
 It does not replace the official converter.
 
+<a id="when-to-use"></a>
+
+## Who This Is For
+
+Use this skill for advanced workspace audits when:
+
+- A workspace root policy should apply across multiple child repositories.
+- Repositories mix durable facts with Claude-specific mechanics such as hooks,
+  permissions, slash commands, plugins, or MCP config.
+- Private local context, memory, routing, credentials, or operational details
+  need to stay out of repo instructions.
+- Existing `AGENTS.md` files may be generated, mechanically converted, stale,
+  or mixed with source material that needs trust-mode verification.
+
+Use OpenAI's curated `migrate-to-codex` skill for a small single repository or
+another routine supported conversion. Also skip this skill when the user
+explicitly wants to keep a Claude-native config repo as-is rather than migrate
+its contents.
+
 ## Runtime Support
 
 | Runtime | Support level | Intended behavior |
@@ -51,8 +70,8 @@ ln -s <repo-path>/codex-context-migration \
 
 Restart Codex after installation if automatic discovery does not refresh.
 
-If you already have this repository on GitHub, you can also ask Codex to use
-its `skill-installer` skill to install:
+For a snapshot installation from GitHub, ask Codex to use its `skill-installer`
+skill with this repository path:
 
 ```text
 WoojinAhn/custom-skills/codex-context-migration
@@ -132,24 +151,6 @@ The final public smoke QA in [#40](https://github.com/WoojinAhn/custom-skills/is
 should repeat the clone/symlink, branch update, snapshot pin, and return-to-branch
 checks from a clean checkout.
 
-## When To Use
-
-Use this skill when a migration has more than one source of context or when a
-blind conversion could lose important intent:
-
-- A workspace root policy should apply across multiple child repositories.
-- Repositories mix durable facts with Claude-specific mechanics such as hooks,
-  permissions, slash commands, plugins, or MCP config.
-- Private local context, memory, routing, credentials, or operational details
-  need to stay out of repo instructions.
-- Existing `AGENTS.md` files may be generated, mechanically converted, stale,
-  or mixed with source material that needs trust-mode verification.
-
-Use OpenAI's curated `migrate-to-codex` skill for a small single repository or
-another routine supported conversion. Also skip this skill when the user
-explicitly wants to keep a Claude-native config repo as-is rather than migrate
-its contents.
-
 ## Quick Start
 
 Run the migration from a Codex session. The source files being migrated may
@@ -170,7 +171,8 @@ copying files, migrating private context, registering MCP servers, or retaining
 runtime/plugin behavior.
 ```
 
-Manual read-only inventory command:
+The inventory helper requires Python 3.11 or later (`python3`) and uses only
+the standard library. Run this read-only command from the repository root:
 
 ```bash
 python3 codex-context-migration/scripts/inventory.py \
@@ -196,6 +198,18 @@ Before editing files, record five migration control points:
 planning aid, not silent approval; private/local memory, hooks, permissions,
 MCP write or production access, third-party bridges, and retained Claude
 plugins still require explicit confirmation.
+
+## Development Checks
+
+Run from the repository root with Python 3.11 or later. The regression tests
+additionally require `pytest`. Keep that dependency in an isolated environment:
+
+```bash
+python3 -m venv .venv
+. .venv/bin/activate
+python3 -m pip install pytest
+python3 -m pytest codex-context-migration/scripts/tests -q
+```
 
 ## Workspace Layering
 
@@ -270,6 +284,8 @@ realistic before/after migration showing:
 
 ## References
 
+- [Draft v1 release notes](references/release-notes-v1.md): capabilities,
+  limitations, and the remaining release gate.
 - [SKILL.md](SKILL.md): compact operational instructions loaded by the agent.
 - [LICENSE.txt](LICENSE.txt): MIT license for this skill package.
 - [references/operation-modes.md](references/operation-modes.md): detailed mode,

@@ -6,132 +6,40 @@ Personal AI agent skills for Claude Code and Codex, distilled from real sessions
 
 Each skill lives in its own directory with a `SKILL.md` (frontmatter + body).
 
-## Install For Codex
+## Start Here
 
-This repository is published as skill source material. It is not packaged as a
-Codex plugin yet; plugin packaging is optional and may be added later for a
-marketplace-style install experience.
+This repository distributes skill source directories, not a Codex plugin.
+Browse the [skill catalog](#skills) below for each skill's purpose and instructions.
 
-For routine Claude-to-Codex conversion, install and use OpenAI's curated skill:
+For routine Claude-to-Codex conversion, start with
+[OpenAI's curated `migrate-to-codex` skill](codex-context-migration/README.md#official-skill-first).
 
-```text
-$skill-installer migrate-to-codex
-```
+[`codex-context-migration`](codex-context-migration/README.md) adds advanced
+workspace audits: multiple repositories, workspace copies, private context,
+instruction layering, target posture, and authorization evidence. Its guide covers:
 
-Install this repository's `codex-context-migration` skill only for advanced
-multi-repository, workspace-copy, private-context, layering, posture, or
-authorization audits that exceed the official converter. For that explicit
-scope, symlink the skill directory into `${CODEX_HOME:-$HOME/.codex}/skills/`:
+- [Who it is for](codex-context-migration/README.md#who-this-is-for).
+- [Installation](codex-context-migration/README.md#optional-advanced-audit-installation)
+  and [updates or version pinning](codex-context-migration/README.md#distribution-and-updates)
+  (git clone + symlink is the recommended updateable install).
+- [Quick start](codex-context-migration/README.md#quick-start),
+  [diagrams](codex-context-migration/README.md#workspace-layering), and a
+  [worked example](codex-context-migration/references/example-migration.md).
 
-```bash
-mkdir -p "${CODEX_HOME:-$HOME/.codex}/skills"
-ln -s <repo-path>/codex-context-migration \
-  "${CODEX_HOME:-$HOME/.codex}/skills/codex-context-migration"
-```
-
-> Verified with `codex-cli 0.137.0`: bundled system skills are present under
-> `${CODEX_HOME:-$HOME/.codex}/skills/.system/`, and the bundled
-> `skill-installer` installs into `${CODEX_HOME:-$HOME/.codex}/skills/`.
-> OpenAI's current Codex skills docs also describe `.agents/skills` locations
-> for authoring/local discovery, so prefer your local Codex installation's
-> skill-installer path if the paths differ.
-
-Codex detects skill changes automatically. Restart it only if the skill does
-not appear.
-
-You can also ask Codex to install from this GitHub repository using its
-`skill-installer` skill and this path:
-
-```text
-WoojinAhn/custom-skills/codex-context-migration
-```
-
-For update and version-pinning guidance, see
-[`codex-context-migration` distribution and updates](codex-context-migration/README.md#distribution-and-updates).
-
-Run the migration from a Codex session, not from the legacy agent whose context
-is being migrated. Example prompt:
-
-```text
-Use the codex-context-migration skill to audit source `/path/to/old-workspace`
-and prepare a Codex-native migration plan for destination
-`/path/to/new-codex-workspace`. Run read-only inventory first and ask before
-copying or editing files.
-```
-
-## Install For Claude Code
-
-Claude Code can parse the same Agent Skills source format, but
-`codex-context-migration` runs there only in compatibility mode. It may use the
-inventory script and audit guidance, but supported conversion and final
-instruction-load validation must be handed to Codex. Do not run it as the
-migration executor from inside a source workspace whose `CLAUDE.md` is already
-active.
-
-For source-format inspection or compatibility testing, symlink the skill into
-`~/.claude/skills/`:
-
-```bash
-ln -s <repo-path>/<skill-name> ~/.claude/skills/<skill-name>
-```
-
-> Symlink rather than copy, on either path. A copied skill drifts silently: edits made
-> while using it land in the installed copy, never reach the repo, and the divergence is
-> invisible until someone diffs the two. Both drifts found so far — a skill revised
-> in place for ten days, and one that was never committed anywhere — were copy-installs.
-
-Do not activate this personal skill globally in Claude Code for routine
-migrations.
-
-## Runtime Support
-
-| Runtime | Support level | Intended behavior |
-|---|---|---|
-| Codex | Recommended; full workflow | Invoke the official converter, apply advanced audit gates when needed, and validate the resulting `AGENTS.md` instruction chain natively. |
-| Claude Code | Compatibility mode | Run read-only inventory or prepare an audit plan, then hand supported conversion and final validation to Codex. |
-
-## Main Skill
-
-[`codex-context-migration`](codex-context-migration/README.md) is the
-public-ready focus of this repo. It has its own skill-level README with quick
-start, diagrams, operation-mode guidance, and a worked before/after migration
-example. It audits first, treats source instruction files as untrusted data to
-classify, and separates durable project facts from private context and runtime
-configuration.
-
-Quick inventory:
-
-```bash
-python3 codex-context-migration/scripts/inventory.py \
-  --source ~/old-workspace \
-  --destination ~/new-codex-workspace \
-  --guided-auto-plan \
-  --format markdown
-```
-
-Inventory smoke tests require `pytest`:
-
-```bash
-python3 -m pytest codex-context-migration/scripts/tests
-```
+The full migration workflow runs in Codex; Claude Code supports read-only
+inventory and audit planning in
+[compatibility mode](codex-context-migration/README.md#runtime-support).
 
 ## Skills
 
 | Skill | One-liner |
 |---|---|
-| [`codex-context-migration`](codex-context-migration/README.md) | Audit-first setup or migration from Claude-era repo context into Codex `AGENTS.md`. |
+| [`codex-context-migration`](codex-context-migration/README.md) | Advanced workspace audits alongside OpenAI's Claude-to-Codex converter. |
 | [`triangulated-review`](triangulated-review/SKILL.md) | Three-reviewer parallel code audit with fact-checking for single-reviewer findings. Cost-pruned form of a larger multi-reviewer experiment. |
 | [`zoom-caption-capture`](zoom-caption-capture/SKILL.md) | Stream Zoom Web Client live captions via a `MutationObserver` inside `iframe#webclient`, with token-level overlap merging and Blob-download dump. Lossless raw buffer + deferred cleanup so an LLM pass can produce final minutes. |
 | [`session-harvest`](session-harvest/SKILL.md) | End-of-session sweep that extracts durable value (tooling issues, docs, memory, hygiene flags) through a strict effectiveness gate. Proposes read-only first and executes only the approved subset. Zero findings is a valid result; skips are reported, not silent. |
 | [`trend-briefing-doc`](trend-briefing-doc/SKILL.md) | Turn a single link or topic phrase into a researched Korean HTML trend briefing structured as "position A vs position B", from a bundled card-style template. Understated report tone — no courtroom/war metaphors. |
 | [`ai-status`](ai-status/SKILL.md) | Batch-check AI/dev service status (Claude, OpenAI, Cursor, GitHub, Gemini + 10 extended) from machine-readable status APIs, distinguishing operational outages from policy/model-recall/FedRAMP scope incidents. |
-
-### `codex-context-migration`
-
-Use when moving a workspace or repository from Claude-era context files into
-Codex-native `AGENTS.md` layers. See the dedicated
-[`codex-context-migration` README](codex-context-migration/README.md) for the
-workflow, diagrams, examples, and references.
 
 ### `triangulated-review`
 

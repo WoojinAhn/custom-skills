@@ -6,126 +6,41 @@
 
 각 스킬은 자체 디렉토리에 `SKILL.md` (frontmatter + 본문)로 존재합니다.
 
-## Codex 설치
+## 시작하기
 
-이 저장소는 skill source로 공개됩니다. 아직 Codex plugin으로 패키징되어 있지는
-않고, plugin packaging은 marketplace 스타일 설치 경험이 필요해질 때 나중에
-추가할 수 있습니다.
+이 저장소는 Codex plugin이 아닌 스킬 소스 디렉터리를 배포합니다.
+각 스킬의 용도와 사용 지침은 아래 [스킬 목록](#skills)에서 확인할 수 있습니다.
 
-일반적인 Claude-to-Codex 변환에는 OpenAI curated skill을 먼저 설치해서
-사용합니다:
+일반적인 Claude-to-Codex 변환은
+[OpenAI의 curated `migrate-to-codex` 스킬](codex-context-migration/README.md#official-skill-first)로
+시작합니다.
 
-```text
-$skill-installer migrate-to-codex
-```
+[`codex-context-migration`](codex-context-migration/README.md)은 다중 저장소,
+workspace copy, private context, instruction layering, target posture, 권한 근거에
+대한 고급 workspace 감사를 추가합니다. 상세 가이드에서 다음을 확인할 수 있습니다.
 
-이 저장소의 `codex-context-migration`은 공식 변환기의 범위를 넘어서는 다중
-저장소, workspace copy, private context, instruction layering, target posture,
-권한 감사에만 설치합니다. 이 고급 범위가 명시적으로 필요한 경우 skill
-디렉터리를 `${CODEX_HOME:-$HOME/.codex}/skills/`에 symlink합니다:
+- [사용 대상](codex-context-migration/README.md#who-this-is-for).
+- [설치](codex-context-migration/README.md#optional-advanced-audit-installation)와
+  [업데이트·버전 고정](codex-context-migration/README.md#distribution-and-updates)
+  (업데이트 가능한 설치 방식으로 git clone + symlink 권장).
+- [빠른 시작](codex-context-migration/README.md#quick-start),
+  [다이어그램](codex-context-migration/README.md#workspace-layering),
+  [실제 이관 예시](codex-context-migration/references/example-migration.md).
 
-```bash
-mkdir -p "${CODEX_HOME:-$HOME/.codex}/skills"
-ln -s <repo-path>/codex-context-migration \
-  "${CODEX_HOME:-$HOME/.codex}/skills/codex-context-migration"
-```
-
-> `codex-cli 0.137.0`에서 검증된 경로입니다. bundled system skills는
-> `${CODEX_HOME:-$HOME/.codex}/skills/.system/` 아래에 있고, bundled
-> `skill-installer`도 `${CODEX_HOME:-$HOME/.codex}/skills/`에 설치합니다.
-> OpenAI의 현재 Codex skills 문서는 authoring/local discovery 경로로
-> `.agents/skills`도 설명하므로, 경로가 다르면 로컬 Codex 설치본의
-> skill-installer 경로를 우선하세요.
-
-Codex는 skill 변경을 자동으로 감지합니다. 목록에 나타나지 않을 때만
-재시작합니다.
-
-Codex의 `skill-installer` skill을 사용해 GitHub 저장소 경로로 설치할 수도
-있습니다:
-
-```text
-WoojinAhn/custom-skills/codex-context-migration
-```
-
-update와 version pinning 안내는
-[`codex-context-migration` distribution and updates](codex-context-migration/README.md#distribution-and-updates)를
-참고하세요.
-
-마이그레이션은 기존 agent가 아니라 Codex session에서 실행하는 것이 의도입니다.
-예시 프롬프트:
-
-```text
-Use the codex-context-migration skill to audit source `/path/to/old-workspace`
-and prepare a Codex-native migration plan for destination
-`/path/to/new-codex-workspace`. Run read-only inventory first and ask before
-copying or editing files.
-```
-
-## Claude Code 설치
-
-Claude Code도 같은 Agent Skills source 형식을 읽을 수 있지만,
-`codex-context-migration`은 Claude Code에서 compatibility mode로만 동작합니다.
-Inventory script와 audit guidance는 사용할 수 있지만, 지원되는 변환과 최종
-instruction-load 검증은 Codex에 넘겨야 합니다. 출발지 workspace의
-`CLAUDE.md`가 이미 활성 지침으로 로드된 상태에서 Claude Code를 migration
-executor로 사용하지 않습니다.
-
-Source format 확인이나 compatibility test가 필요한 경우
-`~/.claude/skills/`에 symlink합니다:
-
-```bash
-ln -s <repo-path>/<skill-name> ~/.claude/skills/<skill-name>
-```
-
-> 어느 경로든 복사가 아니라 symlink로 설치합니다. 복사본은 조용히 갈라집니다 — 스킬을
-> 쓰면서 고친 내용이 설치본에만 남고 레포에는 닿지 않으며, 양쪽을 diff하기 전까지
-> 드러나지 않습니다. 지금까지 발견된 드리프트 2건(열흘간 설치본에서만 개선된 스킬,
-> 그리고 아예 어느 레포에도 커밋되지 않았던 스킬) 모두 복사 설치였습니다.
-
-일반적인 migration을 위해 이 개인 skill을 Claude Code에 전역 활성화하지
-않습니다.
-
-## 실행 환경 지원
-
-| 실행 환경 | 지원 수준 | 의도한 동작 |
-|---|---|---|
-| Codex | 권장, 전체 workflow 지원 | 공식 변환기를 호출하고, 필요한 경우 고급 audit gate를 적용한 뒤 생성된 `AGENTS.md` instruction chain을 같은 환경에서 검증합니다. |
-| Claude Code | Compatibility mode | Read-only inventory 또는 audit plan까지만 수행하고, 지원되는 변환과 최종 검증은 Codex에 넘깁니다. |
-
-## 대표 스킬
-
-[`codex-context-migration`](codex-context-migration/README.md)이 이 repo에서
-공개용으로 가장 신경 쓴 핵심 스킬입니다. 상세 README는 스킬 디렉터리 안에 있고,
-quick start, diagram, operation mode, before/after 예시를 거기에 둡니다. 이
-스킬은 먼저 audit을 수행하고, source instruction 파일을 명령이 아니라 분류할
-데이터로 취급하며, durable project fact와 private/runtime context를 분리합니다.
-
-Quick inventory:
-
-```bash
-python3 codex-context-migration/scripts/inventory.py \
-  --source ~/old-workspace \
-  --destination ~/new-codex-workspace \
-  --guided-auto-plan \
-  --format markdown
-```
+전체 이관 workflow는 Codex에서 실행합니다. Claude Code는
+[compatibility mode](codex-context-migration/README.md#runtime-support)에서
+읽기 전용 inventory와 감사 계획을 지원합니다.
 
 ## Skills
 
 | 스킬 | 한 줄 설명 |
 |---|---|
-| [`codex-context-migration`](codex-context-migration/README.md) | Claude-era repo context를 Codex `AGENTS.md`로 audit-first 세팅/이관. |
+| [`codex-context-migration`](codex-context-migration/README.md) | OpenAI의 Claude-to-Codex 변환기에 더하는 고급 workspace 감사. |
 | [`triangulated-review`](triangulated-review/SKILL.md) | 3 reviewer 패러럴 코드 감사 + 단일 reviewer 발견에 대한 fact-check. 더 큰 multi-reviewer 실험을 cost-pruned한 형태. |
 | [`zoom-caption-capture`](zoom-caption-capture/SKILL.md) | Zoom 웹 클라이언트의 `iframe#webclient` 내부에 `MutationObserver`를 붙여 실시간 자막을 스트리밍 캡처. 토큰 단위 overlap merge + Blob 다운로드로 dump. raw buffer는 무손실 보존, cleanup은 LLM pass에서 처리. |
 | [`session-harvest`](session-harvest/SKILL.md) | 세션 종료 전 durable value(툴링 이슈, 문서, 메모리, hygiene)를 실효성 게이트로 걸러 추출하는 마무리 스윕. 먼저 읽기 전용으로 후보를 제시하고 승인된 항목만 실행. 0건도 유효한 결과이며, 스킵은 침묵이 아니라 사유와 함께 보고. |
 | [`trend-briefing-doc`](trend-briefing-doc/SKILL.md) | 링크 하나 또는 주제 한 줄만으로 리서치를 수행해 "입장 A vs 입장 B" 구조의 한국어 HTML 트렌드 브리핑을 생성. 카드형 담백한 리포트 톤, 법정/전쟁 메타포 금지. 템플릿 동봉. |
 | [`ai-status`](ai-status/SKILL.md) | AI/개발 서비스 상태(Claude, OpenAI, Cursor, GitHub, Gemini + 확장 10개)를 machine-readable status API로 일괄 확인. 운영 장애와 정책/모델 recall/FedRAMP scope incident를 구분해 보고. |
-
-### `codex-context-migration`
-
-Claude-era context를 Codex-native `AGENTS.md` 레이어로 옮길 때 사용합니다.
-워크플로우, diagram, 예시는 전용
-[`codex-context-migration` README](codex-context-migration/README.md)에 둡니다.
 
 ### `triangulated-review`
 
