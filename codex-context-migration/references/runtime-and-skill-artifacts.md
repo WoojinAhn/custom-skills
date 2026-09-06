@@ -107,9 +107,11 @@ python3 <skill>/scripts/inventory.py \
 
 Decision vocabulary:
 
-- `already-present`: Codex already provides the capability; do not copy source
-  MCP config. For optional MCPs, this requires the target baseline to actually
-  contain the MCP or the Codex runtime to provide it.
+- `configured`: An enabled target registration was found; runtime availability
+  remains unknown.
+- `configuration-match`: Source and enabled target configuration match; this
+  does not prove authentication, reachability, tool availability, or semantic
+  equivalence. Credentialed and remote entries still require `defer`.
 - `defer`: Auth, credentials, remote data scope, write capability, production
   access, or unclear ownership requires a separate decision.
 - `cleanup-candidate`: Active target MCP appears unauthenticated, stale, or
@@ -119,6 +121,18 @@ Decision vocabulary:
   register them.
 - `omit`: No durable use case remains.
 
+The inventory reads source `.mcp.json` files and the selected Codex home's
+`config.toml`; it does not resolve project overrides or connect to servers.
+Every row reports `runtime_status: not-checked`. Configuration comparison uses
+all fields, normalizing omitted `enabled` to `true` and omitted stdio `args`
+to `[]`. Other differences, including provider-specific field names, require
+review. Disabled or unknown-enabled entries are never treated as available.
+JSON and Markdown expose configuration field names and source paths, not raw
+command, argument, URL, environment, or header values, which may contain
+credentials. Inspect those values locally in the referenced files if needed.
+Record separate runtime checks with their evidence; an unperformed or failed
+check leaves capability equivalence unknown, not automatically absent.
+
 Keep MCP and plugin audits aligned, but manage them separately. MCP changes use
 `codex mcp ...`; plugin changes use `codex plugin ...`. Verify command support
 with `--help` before suggesting exact flags.
@@ -127,7 +141,7 @@ Do not infer MCP ownership from marketplace catalog presence. A Claude
 marketplace entry such as `context7@claude-plugins-official` only proves the
 plugin is discoverable in that marketplace; it does not prove the active MCP is
 Claude-managed or installed. If `[mcp_servers.context7]` exists in Codex config,
-classify that active capability as Codex-managed MCP unless the actual installed
+classify that registration as Codex-managed MCP unless the actual installed
 plugin config says otherwise. If Context7 only appears in source config or a
 marketplace catalog, do not mark it `already-present`. Retained MCPs should be
 re-registered or
@@ -217,7 +231,7 @@ Prefer classification over file copying:
 | Slash command with reusable workflow | `rewrite` | Convert intent into a Codex skill/procedure |
 | Slash command tied to Claude-only state | `defer` or `omit` | Runtime assumptions may not hold |
 | MCP server with credentials/write scope | `defer` | Requires user approval and target config review |
-| MCP already provided by Codex runtime or target baseline | `already-present` | Avoid duplicate or stale registrations |
+| MCP target registration / source configuration match | `configured` / `configuration-match` | Check enabled state and runtime evidence before reuse |
 | Target MCP is unauthenticated or failing | `cleanup-candidate` or `defer` | Do not preserve broken runtime state silently |
 | Source repo that builds user-facing/product functionality | `migrate` or `include-native` | Purpose is not Claude runtime itself |
 | Repo whose primary purpose is Claude config, hooks, relay, or plugin cache | `exclude` or `defer` | Claude-native operational code |

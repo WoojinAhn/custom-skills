@@ -1188,9 +1188,12 @@ def global_claude_runtime_snapshot(claude_home: Path) -> list[dict[str, object]]
 
 
 def mcp_transport(config: dict[str, object]) -> str:
-    if config.get("url"):
+    url, command = config.get("url"), config.get("command")
+    if url and command:
+        return "unknown"
+    if isinstance(url, str) and url.strip():
         return "remote-url"
-    if config.get("command"):
+    if isinstance(command, str) and command.strip():
         return "stdio-command"
     return "unknown"
 
@@ -1201,10 +1204,13 @@ def mcp_risk_signals(name: str, config: dict[str, object]) -> list[str]:
     url = str(config.get("url") or "")
     command = str(config.get("command") or "")
     if name in CODEX_RUNTIME_MCP_NAMES or "node_repl" in command:
-        return ["codex-runtime"]
+        signals.append("codex-runtime")
     if url:
         signals.append("remote-access")
-    if isinstance(config.get("env"), dict) and config.get("env"):
+    if any(config.get(field) for field in (
+        "env", "env_vars", "headers", "http_headers", "env_http_headers",
+        "bearer_token_env_var", "http_headers_helper", "auth",
+    )):
         signals.append("credentials")
     if any(token in lower_name for token in ("prod", "write", "admin")):
         signals.append("write-or-production-risk")
@@ -1220,14 +1226,17 @@ def mcp_row(
     source_path: Path,
     config: dict[str, object],
 ) -> dict[str, object]:
+    enabled = config.get("enabled", True)
     return {
         "name": name,
         "origin": origin,
         "managed_by": "codex-mcp" if origin == "target" else "source-config",
         "source_path": str(source_path),
         "transport": mcp_transport(config),
-        "command": str(config.get("command") or ""),
-        "url": str(config.get("url") or ""),
+        "enabled": enabled if isinstance(enabled, bool) else None,
+        "configured_fields": sorted(config),
+        # Compare values in memory; audit output exposes field names only.
+        "_config": config,
         "risk_signals": mcp_risk_signals(name, config),
     }
 
@@ -1281,35 +1290,75 @@ def target_mcp_baseline(codex_home: Path) -> list[dict[str, object]]:
     return rows
 
 
-def mcp_decision(row: dict[str, object], target_names: set[str]) -> tuple[str, str]:
-    name = str(row.get("name") or "")
+def mcp_decision(row: dict[str, object]) -> tuple[str, str]:
     origin = str(row.get("origin") or "")
     risk_signals = set(row.get("risk_signals") or [])
     transport = str(row.get("transport") or "")
-    if name in CODEX_RUNTIME_MCP_NAMES or "codex-runtime" in risk_signals:
-        return "already-present", "Codex target runtime baseline"
-    if origin == "target" and transport == "remote-url":
-        return "defer", "remote MCP requires auth and data-scope review before keeping"
-    if origin == "target":
-        return "already-present", "Codex-managed MCP registration already present"
+    if row.get("enabled") is not True or transport == "unknown":
+        return "manual-review", "MCP is disabled or its configuration is unknown"
+    if origin == "source" and row.get("target_source_path"):
+        if row.get("target_enabled") is not True:
+            return "manual-review", "Same-name target MCP is disabled or its enabled state is unknown"
+        if row.get("configuration_match") is not True:
+            return "manual-review", "Same-name target MCP configuration differs; inspect different_fields"
     if "credentials" in risk_signals or "write-or-production-risk" in risk_signals:
         return "defer", "MCP uses credentials or remote access requiring review"
-    if origin == "source" and name in target_names:
-        return "already-present", "Target already has an MCP with the same capability name"
     if transport == "remote-url":
         return "defer", "remote MCP requires auth and data-scope review"
+    if origin == "target":
+        return "configured", "Codex MCP configuration found; runtime has not been checked"
+    if row.get("configuration_match") is True:
+        return "configuration-match", "Source and target configuration match; runtime has not been checked"
     return "manual-review", "MCP capability requires explicit target decision"
+
+
+def comparable_mcp_config(row: dict[str, object]) -> dict[str, object] | None:
+    config = row.get("_config")
+    if not isinstance(config, dict):
+        return None
+    normalized = dict(config)
+    normalized.setdefault("enabled", True)
+    if row.get("transport") == "stdio-command":
+        normalized.setdefault("args", [])
+    return normalized
 
 
 def mcp_capability_decisions(
     source_rows: list[dict[str, object]],
     target_rows: list[dict[str, object]],
 ) -> list[dict[str, object]]:
-    target_names = {str(row.get("name") or "") for row in target_rows}
+    targets = {str(row.get("name") or ""): row for row in target_rows}
     decisions: list[dict[str, object]] = []
     for row in [*target_rows, *source_rows]:
-        decision, reason = mcp_decision(row, target_names)
-        updated = dict(row)
+        updated = {
+            key: value for key, value in row.items()
+            if key not in {"_config", "command", "url"}
+        }
+        updated.setdefault("enabled", None)
+        updated.setdefault("configured_fields", [])
+        updated.update(
+            configuration_match=None, different_fields=[], target_enabled=None,
+            target_source_path="", runtime_status="not-checked",
+        )
+        target = (
+            targets.get(str(row.get("name") or ""))
+            if row.get("origin") == "source" else None
+        )
+        if target is not None:
+            updated["target_enabled"] = target.get("enabled")
+            updated["target_source_path"] = target.get("source_path", "")
+            source_config = comparable_mcp_config(row)
+            target_config = comparable_mcp_config(target)
+            if source_config is not None and target_config is not None:
+                fields = sorted(source_config.keys() | target_config.keys())
+                different_fields = [
+                    field for field in fields
+                    if field not in source_config or field not in target_config
+                    or source_config[field] != target_config[field]
+                ]
+                updated["configuration_match"] = not different_fields
+                updated["different_fields"] = different_fields
+        decision, reason = mcp_decision(updated)
         updated["decision"] = decision
         updated["reason"] = reason
         decisions.append(updated)
@@ -2127,9 +2176,17 @@ def print_mcp_audit_markdown(rows: list[dict[str, object]]) -> None:
         "origin",
         "managed_by",
         "transport",
+        "enabled",
+        "target_enabled",
+        "configuration_match",
+        "different_fields",
+        "runtime_status",
         "decision",
         "reason",
         "risk_signals",
+        "configured_fields",
+        "source_path",
+        "target_source_path",
     ]
     print()
     print("## MCP Capability Audit")

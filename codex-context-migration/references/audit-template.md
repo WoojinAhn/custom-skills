@@ -109,16 +109,22 @@ Manifest summary:
 MCP migration is capability re-selection, not config copying. Source MCP config,
 Claude MCP settings, and existing target MCP registrations are evidence only.
 
-| MCP | Origin | Transport | Auth state | Risk | Codex-native equivalent | Decision | Evidence |
+| MCP | Origin | Enabled | Configuration comparison | Runtime / auth evidence | Risk | Decision | Evidence |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `context7` | source / target | stdio-command | unsupported / n/a | low | optional MCP | manual-review / already-present | Mark already-present only when target config has `[mcp_servers.context7]`; Claude marketplace catalog presence is not enough |
-| `node_repl` | target | stdio-command | unsupported | Codex runtime | Codex app runtime | already-present |  |
-| `remote-notes` | target | remote-url | not logged in / unknown | auth/external data | none / reviewed MCP | cleanup-candidate / defer |  |
-| `prod-writer` | source | remote-url | token/env | credentials/write/production | none known | defer |  |
+| `context7` | source | true; target true | match / different / unknown | not-checked | low | configuration-match / manual-review | Source and target paths; differing field names only |
+| `node_repl` | target | true / false / unknown | not compared | not-checked | runtime name is only a hint | configured / manual-review | Target registration does not prove runtime availability |
+| `remote-notes` | target | true | not compared | not-checked | auth/external data | defer | Record separate auth/reachability evidence if checked |
+| `prod-writer` | source | true | no target found | not-checked | credentials/write/production | defer | Omit credential-bearing values |
+
+The inventory does not connect to servers. Keep runtime status `not-checked`
+until a separate check supplies evidence; a failed check leaves capability
+equivalence unknown and should be recorded with its failure reason.
 
 MCP summary:
 
-- Already present:
+- Configured (runtime not checked):
+- Configuration matches (runtime not checked):
+- Separately verified runtime capabilities and evidence:
 - Codex-native:
 - Deferred:
 - Cleanup candidates:

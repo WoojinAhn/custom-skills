@@ -4,6 +4,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 
 SCRIPT_PATH = Path(__file__).resolve().parents[1] / "inventory.py"
 SPEC = importlib.util.spec_from_file_location("inventory", SCRIPT_PATH)
@@ -772,11 +774,11 @@ def test_mcp_target_baseline_marks_runtime_and_remote_review(tmp_path):
     decisions = inventory.mcp_capability_decisions([], rows)
     by_name = {row["name"]: row for row in decisions}
 
-    assert by_name["node_repl"]["decision"] == "already-present"
-    assert by_name["node_repl"]["reason"] == "Codex target runtime baseline"
+    assert by_name["node_repl"]["decision"] == "configured"
+    assert by_name["node_repl"]["runtime_status"] == "not-checked"
     assert by_name["remote-notes"]["decision"] == "defer"
     assert "remote MCP" in by_name["remote-notes"]["reason"]
-    assert by_name["notebooklm-mcp"]["decision"] == "already-present"
+    assert by_name["notebooklm-mcp"]["decision"] == "configured"
     assert by_name["notebooklm-mcp"]["managed_by"] == "codex-mcp"
 
 
@@ -850,11 +852,12 @@ def test_context7_codex_mcp_is_not_reclassified_by_claude_marketplace_entry(tmp_
     )
     assert by_name["context7"]["origin"] == "target"
     assert by_name["context7"]["managed_by"] == "codex-mcp"
-    assert by_name["context7"]["decision"] == "already-present"
+    assert by_name["context7"]["decision"] == "configured"
+    assert by_name["context7"]["runtime_status"] == "not-checked"
     assert "Claude" not in by_name["context7"]["reason"]
 
 
-def test_matching_target_baseline_makes_source_mcp_already_present(tmp_path):
+def test_matching_target_baseline_records_source_mcp_configuration_match(tmp_path):
     source = tmp_path / "source"
     codex_home = tmp_path / ".codex"
     source.mkdir()
@@ -887,4 +890,176 @@ def test_matching_target_baseline_makes_source_mcp_already_present(tmp_path):
     context7_decisions = [row for row in decisions if row["name"] == "context7"]
 
     assert {row["origin"] for row in context7_decisions} == {"source", "target"}
-    assert all(row["decision"] == "already-present" for row in context7_decisions)
+    by_origin = {row["origin"]: row for row in context7_decisions}
+    assert by_origin["target"]["decision"] == "configured"
+    assert by_origin["source"]["decision"] == "configuration-match"
+    assert by_origin["source"]["configuration_match"] is True
+    assert by_origin["source"]["different_fields"] == []
+    assert all(row["runtime_status"] == "not-checked" for row in context7_decisions)
+
+
+def mcp_test_row(tmp_path, origin, config, name="sample"):
+    return inventory.mcp_row(
+        name=name,
+        origin=origin,
+        source_path=tmp_path / (".mcp.json" if origin == "source" else "config.toml"),
+        config=config,
+    )
+
+
+def test_mcp_config_match_normalizes_enabled_and_empty_stdio_args(tmp_path):
+    source = mcp_test_row(tmp_path, "source", {"command": "server"})
+    target = mcp_test_row(
+        tmp_path, "target", {"command": "server", "args": [], "enabled": True}
+    )
+    rows = inventory.mcp_capability_decisions([source], [target])
+    source_result = next(row for row in rows if row["origin"] == "source")
+
+    assert source_result["decision"] == "configuration-match"
+    assert source_result["enabled"] is True
+    assert source_result["target_enabled"] is True
+    assert source_result["configuration_match"] is True
+    assert source_result["different_fields"] == []
+    assert source_result["runtime_status"] == "not-checked"
+    assert "command" in source_result["configured_fields"]
+
+
+@pytest.mark.parametrize(
+    "field,source_value,target_value",
+    [
+        ("command", "source-server", "target-server"),
+        ("args", ["--scope", "source"], ["--scope", "target"]),
+        ("type", "stdio", "http"),
+        ("url", "https://source.invalid/mcp", "https://target.invalid/mcp"),
+        ("env", {"TOKEN": "source-value"}, {"TOKEN": "target-value"}),
+        ("headers", {"Authorization": "source-value"}, {"Authorization": "target-value"}),
+        ("http_headers", {"Authorization": "source-value"}, {"Authorization": "target-value"}),
+        ("startup_timeout_sec", 10, 20),
+    ],
+)
+def test_mcp_same_name_compares_all_config_fields(
+    tmp_path, field, source_value, target_value
+):
+    base_config = {} if field == "url" else {"command": "server"}
+    source_config = {**base_config, field: source_value}
+    target_config = {**base_config, field: target_value}
+    rows = inventory.mcp_capability_decisions(
+        [mcp_test_row(tmp_path, "source", source_config)],
+        [mcp_test_row(tmp_path, "target", target_config)],
+    )
+    result = next(row for row in rows if row["origin"] == "source")
+
+    assert result["configuration_match"] is False
+    assert field in result["different_fields"]
+    assert result["runtime_status"] == "not-checked"
+    assert result["decision"] in {"manual-review", "defer"}
+    if field in {"command", "args", "startup_timeout_sec"}:
+        assert result["decision"] == "manual-review"
+
+
+@pytest.mark.parametrize("enabled", [False, "false", 0])
+def test_mcp_disabled_or_invalid_runtime_named_target_requires_review(tmp_path, enabled):
+    config = {"command": "node_repl", "enabled": enabled}
+    rows = inventory.mcp_capability_decisions(
+        [mcp_test_row(tmp_path, "source", {"command": "node_repl"}, name="node_repl")],
+        [mcp_test_row(tmp_path, "target", config, name="node_repl")],
+    )
+    by_origin = {row["origin"]: row for row in rows}
+    expected_enabled = False if enabled is False else None
+
+    assert by_origin["target"]["enabled"] is expected_enabled
+    assert by_origin["source"]["target_enabled"] is expected_enabled
+    assert all(row["decision"] == "manual-review" for row in rows)
+    assert all(row["runtime_status"] == "not-checked" for row in rows)
+
+
+def test_mcp_same_name_with_different_transport_does_not_match(tmp_path):
+    rows = inventory.mcp_capability_decisions(
+        [mcp_test_row(tmp_path, "source", {"command": "server"})],
+        [mcp_test_row(tmp_path, "target", {"url": "https://remote.invalid/mcp"})],
+    )
+    result = next(row for row in rows if row["origin"] == "source")
+    assert result["configuration_match"] is False
+    assert {"command", "url"}.issubset(result["different_fields"])
+    assert result["decision"] == "manual-review"
+    assert result["runtime_status"] == "not-checked"
+
+
+def test_mcp_disabled_source_requires_review_even_with_enabled_target(tmp_path):
+    rows = inventory.mcp_capability_decisions(
+        [mcp_test_row(tmp_path, "source", {"command": "server", "enabled": False})],
+        [mcp_test_row(tmp_path, "target", {"command": "server"})],
+    )
+    result = next(row for row in rows if row["origin"] == "source")
+    assert result["decision"] == "manual-review"
+    assert result["enabled"] is False
+    assert result["target_enabled"] is True
+
+
+def test_mcp_source_without_target_has_no_configuration_or_runtime_proof(tmp_path):
+    rows = inventory.mcp_capability_decisions(
+        [mcp_test_row(tmp_path, "source", {"command": "node_repl"}, name="node_repl")],
+        [],
+    )
+    result = rows[0]
+    assert result["decision"] == "manual-review"
+    assert "requires explicit target decision" in result["reason"]
+    assert result["target_enabled"] is None
+    assert result["configuration_match"] is None
+    assert result["different_fields"] == []
+    assert result["runtime_status"] == "not-checked"
+
+
+@pytest.mark.parametrize(
+    "extra",
+    [
+        {"url": "https://remote.invalid/mcp"},
+        {"env": {"TOKEN": "secret-value"}},
+        {"headers": {"Authorization": "secret-value"}},
+        {"http_headers": {"Authorization": "secret-value"}},
+    ],
+)
+def test_mcp_matching_remote_or_credentials_still_requires_review(tmp_path, extra):
+    config = extra if "url" in extra else {"command": "server", **extra}
+    rows = inventory.mcp_capability_decisions(
+        [mcp_test_row(tmp_path, "source", config)],
+        [mcp_test_row(tmp_path, "target", config)],
+    )
+    source = next(row for row in rows if row["origin"] == "source")
+    assert source["configuration_match"] is True
+    assert source["decision"] == "defer"
+    expected_reason = "remote MCP" if "url" in extra else "credentials or remote access"
+    assert expected_reason in source["reason"]
+    assert source["runtime_status"] == "not-checked"
+
+
+def test_mcp_audit_omits_raw_config_values_from_json_and_markdown(tmp_path, capsys):
+    sensitive_values = [
+        "/private/COMMAND_SECRET/server",
+        "https://example.invalid/URL_SECRET",
+        "ARG_SECRET",
+        "ENV_SECRET",
+        "HEADER_SECRET",
+    ]
+    config = {
+        "command": sensitive_values[0],
+        "url": sensitive_values[1],
+        "args": [sensitive_values[2]],
+        "env": {"TOKEN": sensitive_values[3]},
+        "headers": {"Authorization": sensitive_values[4]},
+    }
+    rows = inventory.mcp_capability_decisions(
+        [mcp_test_row(tmp_path, "source", config)],
+        [mcp_test_row(tmp_path, "target", config)],
+    )
+    json_output = json.dumps(rows)
+    inventory.print_mcp_audit_markdown(rows)
+    markdown_output = capsys.readouterr().out
+
+    for value in sensitive_values:
+        assert value not in json_output
+        assert value not in markdown_output
+    for row in rows:
+        assert set(config).issubset(row["configured_fields"])
+        assert not (set(config) & row.keys())
+        assert row["runtime_status"] == "not-checked"
