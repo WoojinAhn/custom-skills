@@ -35,11 +35,24 @@ inventory and audit planning in
 | Skill | One-liner |
 |---|---|
 | [`codex-context-migration`](codex-context-migration/README.md) | Advanced workspace audits alongside OpenAI's Claude-to-Codex converter. |
+| [`collaborative-development`](collaborative-development/SKILL.md) | Coordinate development with interchangeable agents, independent reviews and verified delivery within the approved scope. |
 | [`triangulated-review`](triangulated-review/SKILL.md) | Three-reviewer parallel code audit with fact-checking for single-reviewer findings. Cost-pruned form of a larger multi-reviewer experiment. |
 | [`zoom-caption-capture`](zoom-caption-capture/SKILL.md) | Stream Zoom Web Client live captions via a `MutationObserver` inside `iframe#webclient`, with token-level overlap merging and Blob-download dump. Lossless raw buffer + deferred cleanup so an LLM pass can produce final minutes. |
 | [`session-harvest`](session-harvest/SKILL.md) | End-of-session sweep that extracts durable value (tooling issues, docs, memory, hygiene flags) through a strict effectiveness gate. Proposes read-only first and executes only the approved subset. Zero findings is a valid result; skips are reported, not silent. |
 | [`trend-briefing-doc`](trend-briefing-doc/SKILL.md) | Turn a single link or topic phrase into a researched Korean HTML trend briefing structured around facts, implications, and uncertainties, or supported positions A/B, from a bundled card-style template. Understated report tone — no courtroom/war metaphors. |
 | [`ai-status`](ai-status/SKILL.md) | Batch-check AI/dev service status (Claude, OpenAI, Cursor, GitHub, Gemini + 10 extended) from machine-readable status APIs, distinguishing operational outages from policy/model-recall/FedRAMP scope incidents. |
+
+### `collaborative-development`
+
+Use for non-trivial subagent-driven or rescue-assisted development. It composes
+available Superpowers and project review workflows while keeping coordinator
+ownership, evidence and review coverage explicit. Participants adapt to current
+access and task needs; no model roster or reviewer quorum is fixed.
+
+Invoke `$collaborative-development` with the issue or desired outcome and any
+provider or delivery constraints. The skill does not grant merge, release or
+installation permission. Trivial edits and review-only requests can use their
+focused workflows directly.
 
 ### `triangulated-review`
 

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Collaborative Development"
+  short_description: "Coordinate development with independent, adaptable reviews"
+  default_prompt: "Use $collaborative-development to coordinate this development task with available agents, independent reviews, and verified delivery within the approved scope."

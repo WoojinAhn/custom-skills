@@ -36,11 +36,23 @@ workspace copy, private context, instruction layering, target posture, 권한 �
 | 스킬 | 한 줄 설명 |
 |---|---|
 | [`codex-context-migration`](codex-context-migration/README.md) | OpenAI의 Claude-to-Codex 변환기에 더하는 고급 workspace 감사. |
+| [`collaborative-development`](collaborative-development/SKILL.md) | 사용 가능한 에이전트를 조합하고 독립 리뷰·실제 검증을 거쳐 승인된 범위까지 개발을 마무리하는 운영 스킬. |
 | [`triangulated-review`](triangulated-review/SKILL.md) | 3 reviewer 패러럴 코드 감사 + 단일 reviewer 발견에 대한 fact-check. 더 큰 multi-reviewer 실험을 cost-pruned한 형태. |
 | [`zoom-caption-capture`](zoom-caption-capture/SKILL.md) | Zoom 웹 클라이언트의 `iframe#webclient` 내부에 `MutationObserver`를 붙여 실시간 자막을 스트리밍 캡처. 토큰 단위 overlap merge + Blob 다운로드로 dump. raw buffer는 무손실 보존, cleanup은 LLM pass에서 처리. |
 | [`session-harvest`](session-harvest/SKILL.md) | 세션 종료 전 durable value(툴링 이슈, 문서, 메모리, hygiene)를 실효성 게이트로 걸러 추출하는 마무리 스윕. 먼저 읽기 전용으로 후보를 제시하고 승인된 항목만 실행. 0건도 유효한 결과이며, 스킵은 침묵이 아니라 사유와 함께 보고. |
 | [`trend-briefing-doc`](trend-briefing-doc/SKILL.md) | 링크 하나 또는 주제 한 줄만으로 리서치를 수행해 근거에 따라 사실·영향·불확실성 또는 입장 A/B 구조의 한국어 HTML 트렌드 브리핑을 생성. 카드형 담백한 리포트 톤, 법정/전쟁 메타포 금지. 템플릿 동봉. |
 | [`ai-status`](ai-status/SKILL.md) | AI/개발 서비스 상태(Claude, OpenAI, Cursor, GitHub, Gemini + 확장 10개)를 machine-readable status API로 일괄 확인. 운영 장애와 정책/모델 recall/FedRAMP scope incident를 구분해 보고. |
+
+### `collaborative-development`
+
+여러 에이전트나 rescue를 활용하는 비단순 개발에 사용합니다. 사용 가능한
+Superpowers와 프로젝트 검토 절차를 연결하고, 오너의 책임·검증 근거·리뷰가
+덮는 변경 범위를 명확히 합니다. 참여 모델과 인원수는 고정하지 않고 현재
+접근 가능 여부와 과업에 맞춥니다.
+
+`$collaborative-development`와 함께 이슈 또는 원하는 결과, provider·완료 범위
+제약을 전달합니다. 스킬 자체가 머지·릴리즈·설치 권한을 부여하지는 않습니다.
+사소한 수정이나 리뷰만 하는 요청에는 해당 작업의 전용 절차를 바로 사용합니다.
 
 ### `triangulated-review`
 
